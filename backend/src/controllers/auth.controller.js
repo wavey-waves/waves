@@ -4,7 +4,7 @@ import User from "../models/user.model.js";
 import { generateToken } from "../libs/utils.js";
 
 export const signup = async (req, res) => {
-  const {userName, password, color} = req.body;
+  const {userName, password, color, isAnonymous} = req.body;
   try {
     // Validate required fields
     if(!userName || userName.trim() === '') {
@@ -15,26 +15,28 @@ export const signup = async (req, res) => {
       return res.status(400).json({message: "Color is required"});
     }
 
-    if(!password || password.length < 6) {
-      return res.status(400).json({message: "Password must be at least 6 characters long"});
-    }
-
     // Check if user already exists
     const existingUser = await User.findOne({userName: userName.trim()});
     if(existingUser) {
       return res.status(400).json({message: "Username already exists"});
     }
 
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
     // Create new user
     const newUser = new User({
       userName: userName.trim(),
-      password: hashedPassword,
-      color: color.trim()
+      color: color.trim(),
+      isAnonymous: isAnonymous || false
     });
+
+    // Only hash and set password for non-anonymous users
+    if (!isAnonymous) {
+      if(!password || password.length < 6) {
+        return res.status(400).json({message: "Password must be at least 6 characters long"});
+      }
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+      newUser.password = hashedPassword;
+    }
 
     // Save user and generate token
     if(newUser) {
@@ -44,7 +46,8 @@ export const signup = async (req, res) => {
       res.status(201).json({
         _id: newUser._id,
         userName: newUser.userName,
-        color: newUser.color
+        color: newUser.color,
+        isAnonymous: newUser.isAnonymous
       });
     } else {
       res.status(400).json({message: "Invalid User data"});
@@ -66,6 +69,11 @@ export const login = async (req, res) => {
     if(!user) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
+
+    // Don't allow anonymous users to login
+    if (user.isAnonymous) {
+      return res.status(400).json({ message: "Anonymous users cannot login" });
+    }
     
     const correctPassword = await bcrypt.compare(password, user.password);
     if(!correctPassword) {
@@ -76,7 +84,8 @@ export const login = async (req, res) => {
     res.status(200).json({
       id: user._id,
       userName: user.userName,
-      color: user.color
+      color: user.color,
+      isAnonymous: user.isAnonymous
     });
   } catch (error) {
     console.log("Error in login auth controller", error.message);

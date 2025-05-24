@@ -68,12 +68,23 @@ function JoinRoom({ onJoin, roomName = "Global" }) {
         const finalUsername = randomName;
         const finalColor = userColor;
         
+        // Create anonymous user in backend
+        const response = await axios.post('/api/auth/signup', {
+          userName: finalUsername,
+          color: finalColor,
+          isAnonymous: true
+        });
+
+        const { _id, userName, color } = response.data;
+        
         localStorage.setItem('anonymousUsername', randomName);
         localStorage.setItem('userColor', userColor);
 
         onJoin({
-          username: finalUsername,
-          color: finalColor
+          id: _id,
+          username: userName,
+          color,
+          isAnonymous: true
         });
       } else {
         // Handle custom account
@@ -84,14 +95,16 @@ function JoinRoom({ onJoin, roomName = "Global" }) {
           const response = await axios.post('/api/auth/signup', {
             userName: username,
             password,
-            color: finalColor
+            color: finalColor,
+            isAnonymous: false
           });
 
           const { _id, userName, color } = response.data;
           onJoin({
             id: _id,
             username: userName,
-            color
+            color,
+            isAnonymous: false
           });
         } else {
           // Login existing user
@@ -104,7 +117,8 @@ function JoinRoom({ onJoin, roomName = "Global" }) {
           onJoin({
             id,
             username: userName,
-            color
+            color,
+            isAnonymous: false
           });
         }
       }

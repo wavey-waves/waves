@@ -10,12 +10,15 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, "Password is required"]
   },
   color: {
     type: String,
     required: [true, "Color is required"],
     trim: true
+  },
+  isAnonymous: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true,
@@ -28,11 +31,5 @@ userSchema.index({ userName: 1 }, { unique: true });
 
 const User = mongoose.model("Users", userSchema);
 
-// Drop the old index if it exists
-User.collection.dropIndexes().catch(err => {
-  if (err.code !== 26) { // Ignore "namespace not found" error
-    console.error('Error dropping indexes:', err);
-  }
-});
 
 export default User;
