@@ -48,7 +48,8 @@ function Home() {
               </div>
             </div>
 
-            <div className="relative group w-full max-w-xs transition duration-300 transform hover:scale-105 hover:-translate-y-2 hover:rotate-1 hover:shadow-2xl hover:cursor-pointer"
+            <div 
+              className="relative group w-full max-w-xs transition duration-300 transform hover:scale-105 hover:-translate-y-2 hover:rotate-1 hover:shadow-2xl hover:cursor-pointer"
               onClick={() => navigate("/global-chat")}
             >
               <div className="absolute inset-0.5 bg-gradient-to-r from-violet-600 to-blue-600 rounded-3xl blur opacity-30 group-hover:opacity-80 transition duration-500 animated-gradient"></div>
@@ -76,11 +77,14 @@ function Home() {
               </div>
             </div>
 
-            <div className="relative group w-full max-w-xs transition duration-300 transform hover:scale-105 hover:-translate-y-2 hover:rotate-1 hover:shadow-2xl hover:cursor-pointer">
-              <div className="absolute inset-0.5 bg-gradient-to-r from-violet-600 to-blue-600 rounded-3xl blur opacity-30 group-hover:opacity-80 transition duration-500 animated-gradient"></div>
+            <div 
+              className="relative group w-full max-w-xs transition duration-300 transform hover:scale-105 hover:-translate-y-2 hover:rotate-1 hover:shadow-2xl hover:cursor-pointer"
+              onClick={() => navigate("/network-chat")}
+            >
+              <div className="absolute inset-0.5 bg-gradient-to-r from-emerald-600 to-cyan-600 rounded-3xl blur opacity-30 group-hover:opacity-80 transition duration-500 animated-gradient"></div>
               <div className="relative bg-black/80 backdrop-blur-xl rounded-2xl p-6 sm:p-8 shadow-2xl border border-gray-800/50 space-y-6">
                 <div className="relative flex items-center gap-2">
-                  <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-violet-600 to-blue-600 rounded-full">
+                  <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-emerald-600 to-cyan-600 rounded-full">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       className="w-5 h-5 sm:w-6 sm:h-6 text-white"
@@ -91,8 +95,7 @@ function Home() {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     >
-                      <path d="M12 2l9 7-9 7-9-7z" />
-                      <path d="M12 22V8" />
+                      <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
                     </svg>
                   </div>
                   <p className="text-lg sm:text-xl font-bold text-white">
@@ -102,7 +105,10 @@ function Home() {
               </div>
             </div>
 
-            <div className="relative group w-full max-w-xs transition duration-300 transform hover:scale-105 hover:-translate-y-2 hover:rotate-1 hover:shadow-2xl hover:cursor-pointer">
+            <div 
+              className="relative group w-full max-w-xs transition duration-300 transform hover:scale-105 hover:-translate-y-2 hover:rotate-1 hover:shadow-2xl hover:cursor-pointer"
+              onClick={() => navigate("/create-room")}
+            >
               <div className="absolute inset-0.5 bg-gradient-to-r from-violet-600 to-blue-600 rounded-3xl blur opacity-30 group-hover:opacity-80 transition duration-500 animated-gradient"></div>
               <div className="relative bg-black/80 backdrop-blur-xl rounded-2xl p-6 sm:p-8 shadow-2xl border border-gray-800/50 space-y-6">
                 <div className="relative flex items-center gap-2">
@@ -117,8 +123,9 @@ function Home() {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     >
-                      <path d="M12 2l9 7-9 7-9-7z" />
-                      <path d="M12 22V8" />
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="16" />
+                      <line x1="8" y1="12" x2="16" y2="12" />
                     </svg>
                   </div>
                   <p className="text-lg sm:text-xl font-bold text-white">
