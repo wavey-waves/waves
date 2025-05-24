@@ -41,7 +41,9 @@ export const sendMessage = async (req, res) => {
 
     await newMessage.save();
 
-    const populated = await newMessage.populate('senderId', 'userName color isAnonymous').execPopulate();
+    // Populate the sender information using findById
+    const populated = await Message.findById(newMessage._id)
+      .populate('senderId', 'userName color isAnonymous');
 
     io.to(GLOBAL_ROOM).emit("chatMessage", populated);
 

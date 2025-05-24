@@ -1,9 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import { io } from "socket.io-client";
 import JoinRoom from "./JoinRoom";
 
 // Configure axios defaults
 axios.defaults.withCredentials = true;
+
+// Initialize Socket.IO
+const socket = io("http://localhost:5000", {
+  withCredentials: true
+});
 
 function GlobalChat() {
   const [messages, setMessages] = useState([]);
@@ -18,20 +24,53 @@ function GlobalChat() {
     }
   };
 
+  // Scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = (e) => {
+  // Fetch messages and setup socket when component mounts and user joins
+  useEffect(() => {
+    if (isJoined && user) {
+      // Fetch existing messages
+      const fetchMessages = async () => {
+        try {
+          const response = await axios.get("/api/messages/global-room");
+          setMessages(response.data);
+        } catch (error) {
+          console.error("Error fetching messages:", error);
+        }
+      };
+      fetchMessages();
+
+      // Join the socket room
+      socket.emit("join", "global-room");
+
+      // Listen for new messages
+      const handleNewMessage = (message) => {
+        setMessages(prevMessages => [...prevMessages, message]);
+      };
+
+      socket.on("chatMessage", handleNewMessage);
+
+      return () => {
+        socket.off("chatMessage", handleNewMessage);
+        socket.emit("leave", "global-room");
+      };
+    }
+  }, [isJoined, user]);
+
+  const handleSendMessage = async (e) => {
     e.preventDefault();
     if (newMessage.trim()) {
-      setMessages([...messages, { 
-        text: newMessage, 
-        sender: user.username,
-        color: user.color,
-        timestamp: new Date().toISOString()
-      }]);
-      setNewMessage("");
+      try {
+        await axios.post("/api/messages/send/global-room", {
+          text: newMessage.trim()
+        });
+        setNewMessage("");
+      } catch (error) {
+        console.error("Error sending message:", error);
+      }
     }
   };
 
@@ -105,29 +144,30 @@ function GlobalChat() {
           >
             {messages.map((message, index) => (
               <div
-                key={index}
+                key={message._id || index}
                 className={`flex ${
-                  message.sender === user.username ? "justify-end" : "justify-start"
+                  message.senderId._id === user.id ? "justify-end" : "justify-start"
                 }`}
               >
                 <div className="max-w-[85%] sm:max-w-[70%]">
                   <div
                     className={`text-xs sm:text-sm font-semibold mb-1 ${
-                      message.sender === user.username
+                      message.senderId._id === user.id
                         ? "text-right text-violet-400"
                         : "text-left"
                     }`}
                     style={{
-                      color: message.sender === user.username ? '#7c3aed' : message.color || '#3b82f6'
+                      color: message.senderId._id === user.id ? '#7c3aed' : message.senderId.color
                     }}
                   >
-                    {message.sender}
+                    {message.senderId._id === user.id ? user.username : message.senderId.userName}
+                    {message.senderId.isAnonymous && " (Anonymous)"}
                   </div>
                   <div
                     className={`rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 backdrop-blur-sm border text-white`}
                     style={{
-                      backgroundColor: message.sender === user.username ? '#7c3aed20' : `${message.color || '#3b82f6'}20`,
-                      borderColor: message.sender === user.username ? '#7c3aed30' : `${message.color || '#3b82f6'}30`
+                      backgroundColor: message.senderId._id === user.id ? '#7c3aed20' : `${message.senderId.color}20`,
+                      borderColor: message.senderId._id === user.id ? '#7c3aed30' : `${message.senderId.color}30`
                     }}
                   >
                     <p className="text-white/90 text-sm sm:text-base break-words text-left">
