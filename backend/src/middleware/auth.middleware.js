@@ -7,24 +7,48 @@ export const protectedRoute = async (req, res, next) => {
     const token = req.cookies.jwt;
 
     if(!token) {
-      return res.status(401).json({message: "Unauthorised - No token"});
+      return res.status(401).json({
+        isAuthenticated: false,
+        message: "No token provided"
+      });
     }
 
-    const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
-    if(!decodedToken) {
-      return res.status(401).json({message: "Unauthorised - Invalid token"});
-    }
+    try {
+      const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
+      if(!decodedToken) {
+        return res.status(401).json({
+          isAuthenticated: false,
+          message: "Invalid token"
+        });
+      }
 
-    const user = await User.findById(decodedToken.userId).select("-password");
-    if(!user) {
-      return res.status(404).json({message: "User not found"});
-    }
+      const user = await User.findById(decodedToken.userId).select("-password");
+      if(!user) {
+        return res.status(404).json({
+          isAuthenticated: false,
+          message: "User not found"
+        });
+      }
 
-    req.user = user;
-    next();
+      req.user = {
+        id: user._id,
+        userName: user.userName,
+        color: user.color,
+        isAuthenticated: true
+      };
+      next();
+    } catch (jwtError) {
+      // Handle JWT verification errors
+      return res.status(500).json({
+        isAuthenticated: false,
+        message: "Invalid token"
+      });
+    }
   } catch (error) {
     console.log("Error in protected auth middleware", error.message);
-    res.status(500).json({message: "Internal Server Error"});
+    res.status(500).json({
+      isAuthenticated: false,
+      message: "Internal Server Error"
+    });
   } 
-
 }

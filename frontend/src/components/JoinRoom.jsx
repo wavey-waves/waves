@@ -1,5 +1,9 @@
 import { useState, useEffect } from "react";
 import { uniqueNamesGenerator, adjectives, colors, animals } from "unique-names-generator";
+import axios from "axios";
+
+// Configure axios defaults
+axios.defaults.withCredentials = true;
 
 // Predefined set of colors that work well with the dark theme
 const USER_COLORS = [
@@ -19,6 +23,8 @@ function JoinRoom({ onJoin, roomName = "Global" }) {
   const [isCreating, setIsCreating] = useState(false);
   const [randomName, setRandomName] = useState("");
   const [userColor, setUserColor] = useState(null);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const generateRandomName = () => {
     return uniqueNamesGenerator({
@@ -53,30 +59,74 @@ function JoinRoom({ onJoin, roomName = "Global" }) {
 
   const handleJoin = async (e) => {
     e.preventDefault();
+    setError("");
+    setIsLoading(true);
     
-    let finalUsername = username;
-    let finalColor = userColor;
-    
-    if (joinType === "anonymous") {
-      finalUsername = randomName;
-      // Store the random name and color in localStorage when joining
-      localStorage.setItem('anonymousUsername', randomName);
-      localStorage.setItem('userColor', userColor);
-    } else {
-      // For custom users, generate a new color if they don't have one
-      if (!finalColor) {
-        finalColor = generateRandomColor();
-        setUserColor(finalColor);
-      }
-    }
+    try {
+      if (joinType === "anonymous") {
+        // Handle anonymous join
+        const finalUsername = randomName;
+        const finalColor = userColor;
+        
+        // Create anonymous user in backend
+        const response = await axios.post('/api/auth/signup', {
+          userName: finalUsername,
+          color: finalColor,
+          isAnonymous: true
+        });
 
-    // TODO: Add backend integration here
-    onJoin({
-      username: finalUsername,
-      password: joinType === "custom" ? password : null,
-      isNewUser: isCreating,
-      color: finalColor
-    });
+        const { _id, userName, color } = response.data;
+        
+        localStorage.setItem('anonymousUsername', randomName);
+        localStorage.setItem('userColor', userColor);
+
+        onJoin({
+          id: _id,
+          username: userName,
+          color,
+          isAnonymous: true
+        });
+      } else {
+        // Handle custom account
+        const finalColor = userColor || generateRandomColor();
+        
+        if (isCreating) {
+          // Sign up new user
+          const response = await axios.post('/api/auth/signup', {
+            userName: username,
+            password,
+            color: finalColor,
+            isAnonymous: false
+          });
+
+          const { _id, userName, color } = response.data;
+          onJoin({
+            id: _id,
+            username: userName,
+            color,
+            isAnonymous: false
+          });
+        } else {
+          // Login existing user
+          const response = await axios.post('/api/auth/login', {
+            userName: username,
+            password
+          });
+
+          const { id, userName, color } = response.data;
+          onJoin({
+            id,
+            username: userName,
+            color,
+            isAnonymous: false
+          });
+        }
+      }
+    } catch (error) {
+      setError(error.response?.data?.message || "Something went wrong");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleGenerateNewName = () => {
@@ -84,7 +134,6 @@ function JoinRoom({ onJoin, roomName = "Global" }) {
     const newColor = generateRandomColor();
     setRandomName(newName);
     setUserColor(newColor);
-    // Update localStorage with new name and color
     localStorage.setItem('anonymousUsername', newName);
     localStorage.setItem('userColor', newColor);
   };
@@ -106,6 +155,12 @@ function JoinRoom({ onJoin, roomName = "Global" }) {
         <h2 className="text-2xl font-bold text-center mb-6 bg-gradient-to-r from-violet-400 via-purple-700 to-indigo-500 bg-clip-text text-transparent">
           Join {roomName} Room
         </h2>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-xl text-red-400 text-sm">
+            {error}
+          </div>
+        )}
 
         <div className="space-y-4">
           <div className="flex gap-4 mb-6">
@@ -185,9 +240,22 @@ function JoinRoom({ onJoin, roomName = "Global" }) {
 
             <button
               type="submit"
-              className="w-full py-2 px-4 bg-gradient-to-r from-violet-600 to-blue-600 rounded-xl text-white hover:opacity-90 transition-opacity font-medium"
+              disabled={isLoading}
+              className={`w-full py-2 px-4 bg-gradient-to-r from-violet-600 to-blue-600 rounded-xl text-white hover:opacity-90 transition-opacity font-medium ${
+                isLoading ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
             >
-              {joinType === "anonymous" ? "Join Anonymously" : isCreating ? "Create Account" : "Login"}
+              {isLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  {joinType === "anonymous" ? "Joining..." : isCreating ? "Creating Account..." : "Logging in..."}
+                </span>
+              ) : (
+                joinType === "anonymous" ? "Join Anonymously" : isCreating ? "Create Account" : "Login"
+              )}
             </button>
           </form>
         </div>

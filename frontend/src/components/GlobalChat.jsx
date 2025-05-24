@@ -1,9 +1,14 @@
 import { useState, useEffect, useRef } from "react";
+import axios from "axios";
 import JoinRoom from "./JoinRoom";
+
+// Configure axios defaults
+axios.defaults.withCredentials = true;
 
 function GlobalChat() {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
+  const [isJoined, setIsJoined] = useState(false);
   const [user, setUser] = useState(null);
   const messagesContainerRef = useRef(null);
 
@@ -23,19 +28,19 @@ function GlobalChat() {
       setMessages([...messages, { 
         text: newMessage, 
         sender: user.username,
-        color: user.color 
+        color: user.color,
+        timestamp: new Date().toISOString()
       }]);
       setNewMessage("");
     }
   };
 
   const handleJoin = (userData) => {
-    // TODO: Add backend integration here
-    // For now, we'll just set the user data
     setUser(userData);
+    setIsJoined(true);
   };
 
-  if (!user) {
+  if (!isJoined) {
     return <JoinRoom onJoin={handleJoin} roomName="Global" />;
   }
 
@@ -68,7 +73,11 @@ function GlobalChat() {
               </span>
             </div>
             <button
-              onClick={() => window.history.back()}
+              onClick={() => {
+                setIsJoined(false);
+                setUser(null);
+                setMessages([]);
+              }}
               className="px-2.5 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 bg-gradient-to-r from-violet-600 to-blue-600 rounded-lg text-white hover:opacity-90 transition-opacity text-xs sm:text-sm md:text-base whitespace-nowrap flex items-center gap-1"
             >
               <svg 
@@ -85,7 +94,7 @@ function GlobalChat() {
                   d="M10 19l-7-7m0 0l7-7m-7 7h18" 
                 />
               </svg>
-              <span className="hidden sm:inline">Back</span>
+              <span className="hidden sm:inline">Leave Room</span>
             </button>
           </div>
 

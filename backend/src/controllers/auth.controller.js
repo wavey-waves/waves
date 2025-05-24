@@ -4,40 +4,50 @@ import User from "../models/user.model.js";
 import { generateToken } from "../libs/utils.js";
 
 export const signup = async (req, res) => {
-  const {userName, password, color} = req.body;
+  const {userName, password, color, isAnonymous} = req.body;
   try {
-    if(!userName || !color) {
-      return res.status(400).json({message: "Required fields not filled"});
+    // Validate required fields
+    if(!userName || userName.trim() === '') {
+      return res.status(400).json({message: "Username is required"});
     }
 
-    if(password.length < 6) {
-      return res.status(400).json({message: "Password length too short"});
+    if(!color || color.trim() === '') {
+      return res.status(400).json({message: "Color is required"});
     }
 
-    const user = await User.findOne({userName});
-    if(user) {
-      return res.status(400).json({message: "User already exists"});
+    // Check if user already exists
+    const existingUser = await User.findOne({userName: userName.trim()});
+    if(existingUser) {
+      return res.status(400).json({message: "Username already exists"});
     }
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
+    // Create new user
     const newUser = new User({
-      userName,
-      password: hashedPassword,
-      color
+      userName: userName.trim(),
+      color: color.trim(),
+      isAnonymous: isAnonymous || false
     });
 
-    if(newUser) {
-      //gen jwt
-      generateToken(newUser._id, res);
+    // Only hash and set password for non-anonymous users
+    if (!isAnonymous) {
+      if(!password || password.length < 6) {
+        return res.status(400).json({message: "Password must be at least 6 characters long"});
+      }
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+      newUser.password = hashedPassword;
+    }
 
+    // Save user and generate token
+    if(newUser) {
+      generateToken(newUser._id, res);
       await newUser.save();
 
       res.status(201).json({
         _id: newUser._id,
         userName: newUser.userName,
-        color: newUser.color
+        color: newUser.color,
+        isAnonymous: newUser.isAnonymous
       });
     } else {
       res.status(400).json({message: "Invalid User data"});
@@ -51,9 +61,18 @@ export const signup = async (req, res) => {
 export const login = async (req, res) => {
   const {userName, password} = req.body;
   try {
-    const user = await User.findOne({userName});
+    if(!userName || !password) {
+      return res.status(400).json({ message: "Username and password are required" });
+    }
+
+    const user = await User.findOne({userName: userName.trim()});
     if(!user) {
       return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    // Don't allow anonymous users to login
+    if (user.isAnonymous) {
+      return res.status(400).json({ message: "Anonymous users cannot login" });
     }
     
     const correctPassword = await bcrypt.compare(password, user.password);
@@ -65,8 +84,9 @@ export const login = async (req, res) => {
     res.status(200).json({
       id: user._id,
       userName: user.userName,
-      color: user.color
-    })
+      color: user.color,
+      isAnonymous: user.isAnonymous
+    });
   } catch (error) {
     console.log("Error in login auth controller", error.message);
     res.status(500).json({message: "Internal Server Error"});
