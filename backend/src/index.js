@@ -20,7 +20,7 @@ const __dirname = path.resolve();
 
 //middleware
 app.use(express.json());
-app.use(express.Router());
+// app.use(express.Router());
 app.use(cookieParser());
 app.use(cors({
   origin: ['http://localhost:5174', 'http://localhost:5175', 'http://localhost:5173'],
