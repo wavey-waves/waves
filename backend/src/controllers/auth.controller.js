@@ -61,8 +61,8 @@ export const signup = async (req, res) => {
 export const login = async (req, res) => {
   const {userName, password} = req.body;
   try {
-    if(!userName || !password) {
-      return res.status(400).json({ message: "Username and password are required" });
+    if(!userName) {
+      return res.status(400).json({ message: "Username is required" });
     }
 
     const user = await User.findOne({userName: userName.trim()});
@@ -70,15 +70,14 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    // Don't allow anonymous users to login
-    if (user.isAnonymous) {
-      return res.status(400).json({ message: "Anonymous users cannot login" });
+    
+    if (!user.isAnonymous) {
+      const correctPassword = await bcrypt.compare(password, user.password);
+      if(!correctPassword) {
+        return res.status(400).json({ message: "Invalid credentials" });
+      }
     }
     
-    const correctPassword = await bcrypt.compare(password, user.password);
-    if(!correctPassword) {
-      return res.status(400).json({ message: "Invalid credentials" });
-    }
 
     generateToken(user._id, res);
     res.status(200).json({
