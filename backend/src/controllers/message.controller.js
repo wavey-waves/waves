@@ -6,7 +6,10 @@ const GLOBAL_ROOM = "global-room";
 
 export const getMessages = async (req, res) => {
   try {
-    const messages = await Message.find({ room: GLOBAL_ROOM});
+    const messages = await Message
+      .find({ room: GLOBAL_ROOM})
+      .populate('senderId', 'userName color isAnonymous')
+      .lean();
     res.status(200).json(messages);
   } catch (error) {
     console.log("Error in getMessages controller: ", error.message);
@@ -38,9 +41,11 @@ export const sendMessage = async (req, res) => {
 
     await newMessage.save();
 
-    io.to(GLOBAL_ROOM).emit("chatMessage", newMessage);
+    const populated = await newMessage.populate('senderId', 'userName color isAnonymous').execPopulate();
 
-    res.status(201).json(newMessage);
+    io.to(GLOBAL_ROOM).emit("chatMessage", populated);
+
+    res.status(201).json(populated);
   } catch (error) {
     console.log("Error in sendMessage controller: ", error.message);
     res.status(500).json({ error: "Internal server error" });
