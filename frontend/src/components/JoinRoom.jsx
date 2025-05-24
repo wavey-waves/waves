@@ -231,9 +231,14 @@ function JoinRoom({ onJoin, roomName = "Global" }) {
                   <input
                     type="text"
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Choose a username"
+                    onChange={(e) => {
+                      const alphanumericOnly = e.target.value.replace(/[^a-zA-Z0-9]/g, '');
+                      setUsername(alphanumericOnly);
+                    }}
+                    placeholder="Choose a username (alphanumeric only)"
                     className="w-full bg-white/5 text-white rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-violet-600/50 border border-white/10"
+                    pattern="[a-zA-Z0-9]+"
+                    title="Username can only contain letters and numbers"
                     required
                   />
                 </div>

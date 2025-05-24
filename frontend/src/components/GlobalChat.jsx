@@ -161,7 +161,7 @@ function GlobalChat() {
                     }}
                   >
                     {message.senderId._id === user.id ? user.username : message.senderId.userName}
-                    {message.senderId.isAnonymous && " (Anonymous)"}
+                    {/* {message.senderId.isAnonymous && " (Anonymous)"} */}
                   </div>
                   <div
                     className={`rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 backdrop-blur-sm border text-white`}
