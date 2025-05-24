@@ -20,6 +20,7 @@ function JoinRoom({ onJoin, roomName = "Global" }) {
   const [joinType, setJoinType] = useState("anonymous"); // "anonymous" or "custom"
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [randomName, setRandomName] = useState("");
   const [userColor, setUserColor] = useState(null);
@@ -213,15 +214,34 @@ function JoinRoom({ onJoin, roomName = "Global" }) {
                     required
                   />
                 </div>
-                <div>
+                <div className="relative">
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"} 
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter password"
-                    className="w-full bg-white/5 text-white rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-violet-600/50 border border-white/10"
+                    className="w-full bg-white/5 text-white rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-violet-600/50 border border-white/10 pr-12"
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 hover:text-white focus:outline-none"
+                    tabIndex={-1}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.477 0-8.268-2.943-9.542-7a9.956 9.956 0 012.293-3.95m3.362-2.675A9.956 9.956 0 0112 5c4.477 0 8.268 2.943 9.542 7a9.965 9.965 0 01-4.043 5.197M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3l18 18" />
+                      </svg>
+                    )}
+                  </button>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
