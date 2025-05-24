@@ -6,32 +6,39 @@ import { generateToken } from "../libs/utils.js";
 export const signup = async (req, res) => {
   const {userName, password, color} = req.body;
   try {
-    if(!userName || !color) {
-      return res.status(400).json({message: "Required fields not filled"});
+    // Validate required fields
+    if(!userName || userName.trim() === '') {
+      return res.status(400).json({message: "Username is required"});
     }
 
-    if(password.length < 6) {
-      return res.status(400).json({message: "Password length too short"});
+    if(!color || color.trim() === '') {
+      return res.status(400).json({message: "Color is required"});
     }
 
-    const user = await User.findOne({userName});
-    if(user) {
-      return res.status(400).json({message: "User already exists"});
+    if(!password || password.length < 6) {
+      return res.status(400).json({message: "Password must be at least 6 characters long"});
     }
 
+    // Check if user already exists
+    const existingUser = await User.findOne({userName: userName.trim()});
+    if(existingUser) {
+      return res.status(400).json({message: "Username already exists"});
+    }
+
+    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // Create new user
     const newUser = new User({
-      userName,
+      userName: userName.trim(),
       password: hashedPassword,
-      color
+      color: color.trim()
     });
 
+    // Save user and generate token
     if(newUser) {
-      //gen jwt
       generateToken(newUser._id, res);
-
       await newUser.save();
 
       res.status(201).json({
@@ -51,7 +58,11 @@ export const signup = async (req, res) => {
 export const login = async (req, res) => {
   const {userName, password} = req.body;
   try {
-    const user = await User.findOne({userName});
+    if(!userName || !password) {
+      return res.status(400).json({ message: "Username and password are required" });
+    }
+
+    const user = await User.findOne({userName: userName.trim()});
     if(!user) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
@@ -66,7 +77,7 @@ export const login = async (req, res) => {
       id: user._id,
       userName: user.userName,
       color: user.color
-    })
+    });
   } catch (error) {
     console.log("Error in login auth controller", error.message);
     res.status(500).json({message: "Internal Server Error"});
