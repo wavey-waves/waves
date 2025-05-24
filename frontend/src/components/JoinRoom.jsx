@@ -1,12 +1,24 @@
 import { useState, useEffect } from "react";
 import { uniqueNamesGenerator, adjectives, colors, animals } from "unique-names-generator";
 
+// Predefined set of colors that work well with the dark theme
+const USER_COLORS = [
+  '#3b82f6', // Blue
+  '#10b981', // Emerald
+  '#f59e0b', // Amber
+  '#ef4444', // Red
+  '#8b5cf6', // Purple
+  '#06b6d4', // Cyan
+  '#f97316', // Orange
+];
+
 function JoinRoom({ onJoin, roomName = "Global" }) {
   const [joinType, setJoinType] = useState("anonymous"); // "anonymous" or "custom"
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [randomName, setRandomName] = useState("");
+  const [userColor, setUserColor] = useState(null);
 
   const generateRandomName = () => {
     return uniqueNamesGenerator({
@@ -16,15 +28,26 @@ function JoinRoom({ onJoin, roomName = "Global" }) {
     });
   };
 
-  // Initialize random name from localStorage or generate new one
+  const generateRandomColor = () => {
+    const randomIndex = Math.floor(Math.random() * USER_COLORS.length);
+    return USER_COLORS[randomIndex];
+  };
+
+  // Initialize random name and color from localStorage or generate new ones
   useEffect(() => {
     const storedName = localStorage.getItem('anonymousUsername');
-    if (storedName) {
+    const storedColor = localStorage.getItem('userColor');
+    
+    if (storedName && storedColor) {
       setRandomName(storedName);
+      setUserColor(storedColor);
     } else {
       const newName = generateRandomName();
+      const newColor = generateRandomColor();
       setRandomName(newName);
+      setUserColor(newColor);
       localStorage.setItem('anonymousUsername', newName);
+      localStorage.setItem('userColor', newColor);
     }
   }, []);
 
@@ -32,26 +55,38 @@ function JoinRoom({ onJoin, roomName = "Global" }) {
     e.preventDefault();
     
     let finalUsername = username;
+    let finalColor = userColor;
+    
     if (joinType === "anonymous") {
       finalUsername = randomName;
-      // Store the random name in localStorage when joining
+      // Store the random name and color in localStorage when joining
       localStorage.setItem('anonymousUsername', randomName);
+      localStorage.setItem('userColor', userColor);
+    } else {
+      // For custom users, generate a new color if they don't have one
+      if (!finalColor) {
+        finalColor = generateRandomColor();
+        setUserColor(finalColor);
+      }
     }
 
     // TODO: Add backend integration here
-    // For now, we'll just pass the username to the parent component
     onJoin({
       username: finalUsername,
       password: joinType === "custom" ? password : null,
-      isNewUser: isCreating
+      isNewUser: isCreating,
+      color: finalColor
     });
   };
 
   const handleGenerateNewName = () => {
     const newName = generateRandomName();
+    const newColor = generateRandomColor();
     setRandomName(newName);
-    // Update localStorage with new name
+    setUserColor(newColor);
+    // Update localStorage with new name and color
     localStorage.setItem('anonymousUsername', newName);
+    localStorage.setItem('userColor', newColor);
   };
 
   return (

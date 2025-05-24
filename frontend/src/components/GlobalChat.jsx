@@ -20,7 +20,11 @@ function GlobalChat() {
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (newMessage.trim()) {
-      setMessages([...messages, { text: newMessage, sender: user.username }]);
+      setMessages([...messages, { 
+        text: newMessage, 
+        sender: user.username,
+        color: user.color 
+      }]);
       setNewMessage("");
     }
   };
@@ -102,17 +106,20 @@ function GlobalChat() {
                     className={`text-xs sm:text-sm font-semibold mb-1 ${
                       message.sender === user.username
                         ? "text-right text-violet-400"
-                        : "text-left text-blue-400"
+                        : "text-left"
                     }`}
+                    style={{
+                      color: message.sender === user.username ? '#7c3aed' : message.color || '#3b82f6'
+                    }}
                   >
                     {message.sender}
                   </div>
                   <div
-                    className={`rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 backdrop-blur-sm ${
-                      message.sender === user.username
-                        ? "bg-violet-600/20 border border-violet-500/30 text-white"
-                        : "bg-blue-600/20 border border-blue-500/30 text-white"
-                    }`}
+                    className={`rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 backdrop-blur-sm border text-white`}
+                    style={{
+                      backgroundColor: message.sender === user.username ? '#7c3aed20' : `${message.color || '#3b82f6'}20`,
+                      borderColor: message.sender === user.username ? '#7c3aed30' : `${message.color || '#3b82f6'}30`
+                    }}
                   >
                     <p className="text-white/90 text-sm sm:text-base break-words text-left">
                       {message.text}
