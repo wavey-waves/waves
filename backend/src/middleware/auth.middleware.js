@@ -31,7 +31,7 @@ export const protectedRoute = async (req, res, next) => {
       }
 
       req.user = {
-        id: user._id,
+        _id: user._id,
         userName: user.userName,
         color: user.color,
         isAuthenticated: true

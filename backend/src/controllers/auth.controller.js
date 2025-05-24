@@ -11,7 +11,7 @@ export const signup = async (req, res) => {
       return res.status(400).json({message: "Username is required"});
     }
 
-    if(!color || color.trim() === '') {
+    if(!color) {
       return res.status(400).json({message: "Color is required"});
     }
 
@@ -24,7 +24,7 @@ export const signup = async (req, res) => {
     // Create new user
     const newUser = new User({
       userName: userName.trim(),
-      color: color.trim(),
+      color: color,
       isAnonymous: isAnonymous || false
     });
 

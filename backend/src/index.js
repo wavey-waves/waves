@@ -7,14 +7,14 @@ import cors from 'cors';
 //imports
 import { connectDB } from './libs/db.js';
 import authRoutes from './routes/auth.routes.js';
+import messageRoutes from './routes/message.routes.js';
+import { app, server } from './libs/socket.js';
 
 
 //setup
-const app = express();
 dotenv.config();
 
-//env variables
-const PORT = 5000; // Hardcoded to 5000 to avoid conflicts
+const PORT = process.env.PORT;
 
 //middleware
 app.use(express.json());
@@ -27,10 +27,11 @@ app.use(cors({
 
 //Routes
 app.use('/api/auth', authRoutes);
+app.use("/api/messages", messageRoutes);
 
 
 //server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server started on port: ${PORT}`);
   connectDB();
 })

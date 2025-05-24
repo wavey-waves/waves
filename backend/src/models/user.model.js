@@ -22,12 +22,7 @@ const userSchema = new mongoose.Schema({
   }
 }, {
   timestamps: true,
-  // Drop the old index if it exists
-  autoIndex: true
 });
-
-// Drop any existing indexes
-userSchema.index({ userName: 1 }, { unique: true });
 
 const User = mongoose.model("Users", userSchema);
 

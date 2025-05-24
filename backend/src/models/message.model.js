@@ -7,6 +7,11 @@ const messageSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    room: {
+      type: String,
+      default: "global-room",
+      required: true
+    },
     text: {
       type: String,
     },
