@@ -7,11 +7,11 @@ import cors from 'cors';
 //imports
 import { connectDB } from './libs/db.js';
 import authRoutes from './routes/auth.routes.js';
+import messageRoutes from './routes/message.routes.js';
 import { app, server } from './libs/socket.js';
 
 
 //setup
-const app = express();
 dotenv.config();
 
 //env variables
@@ -28,6 +28,7 @@ app.use(cors({
 
 //Routes
 app.use('/api/auth', authRoutes);
+app.use("/api/messages", messageRoutes);
 
 
 //server
