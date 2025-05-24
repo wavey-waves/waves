@@ -7,7 +7,7 @@ export const protectedRoute = async (req, res, next) => {
     const token = req.cookies.jwt;
 
     if(!token) {
-      return res.status(200).json({
+      return res.status(401).json({
         isAuthenticated: false,
         message: "No token provided"
       });
@@ -16,7 +16,7 @@ export const protectedRoute = async (req, res, next) => {
     try {
       const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
       if(!decodedToken) {
-        return res.status(200).json({
+        return res.status(401).json({
           isAuthenticated: false,
           message: "Invalid token"
         });
@@ -24,7 +24,7 @@ export const protectedRoute = async (req, res, next) => {
 
       const user = await User.findById(decodedToken.userId).select("-password");
       if(!user) {
-        return res.status(200).json({
+        return res.status(404).json({
           isAuthenticated: false,
           message: "User not found"
         });
@@ -39,16 +39,16 @@ export const protectedRoute = async (req, res, next) => {
       next();
     } catch (jwtError) {
       // Handle JWT verification errors
-      return res.status(200).json({
+      return res.status(500).json({
         isAuthenticated: false,
         message: "Invalid token"
       });
     }
   } catch (error) {
     console.log("Error in protected auth middleware", error.message);
-    res.status(200).json({
+    res.status(500).json({
       isAuthenticated: false,
-      message: "Authentication failed"
+      message: "Internal Server Error"
     });
   } 
 }
