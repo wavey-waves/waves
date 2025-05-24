@@ -14,8 +14,7 @@ import { app, server } from './libs/socket.js';
 //setup
 dotenv.config();
 
-//env variables
-const PORT = 5000; // Hardcoded to 5000 to avoid conflicts
+const PORT = process.env.PORT;
 
 //middleware
 app.use(express.json());
