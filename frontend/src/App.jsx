@@ -1,5 +1,10 @@
 import "./App.css";
-import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useNavigate,
+} from "react-router-dom";
 import GlobalChat from "./components/GlobalChat";
 
 function Home() {
@@ -25,7 +30,7 @@ function Home() {
             </span>
           </div>
 
-          <div className="relative w-full flex flex-col md:flex-row gap-8 md:gap-5 items-center justify-center overflow-hidden">
+          <div className="relative w-full flex flex-col md:flex-row gap-8 md:gap-5 items-center justify-center overflow-visible">
             <div className="fixed inset-0 z-0">
               <div className="absolute inset-0 bg-gradient-to-b from-slate-950 to-black"></div>
               <div className="absolute inset-0 bg-gradient-to-tr from-blue-600/5 via-transparent to-purple-600/5"></div>
@@ -43,11 +48,10 @@ function Home() {
               </div>
             </div>
 
-            <div 
-              className="relative group w-full max-w-xs cursor-pointer"
-              onClick={() => navigate('/global-chat')}
+            <div className="relative group w-full max-w-xs transition duration-300 transform hover:scale-105 hover:-translate-y-2 hover:rotate-1 hover:shadow-2xl hover:cursor-pointer"
+              onClick={() => navigate("/global-chat")}
             >
-              <div className="absolute inset-0.5 bg-gradient-to-r from-violet-600 to-blue-600 rounded-3xl blur opacity-30 group-hover:opacity-40 transition duration-1000"></div>
+              <div className="absolute inset-0.5 bg-gradient-to-r from-violet-600 to-blue-600 rounded-3xl blur opacity-30 group-hover:opacity-80 transition duration-500 animated-gradient"></div>
               <div className="relative bg-black/80 backdrop-blur-xl rounded-2xl p-6 sm:p-8 shadow-2xl border border-gray-800/50 space-y-6">
                 <div className="relative flex items-center gap-2">
                   <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-violet-600 to-blue-600 rounded-full">
@@ -72,8 +76,8 @@ function Home() {
               </div>
             </div>
 
-            <div className="relative group w-full max-w-xs">
-              <div className="absolute inset-0.5 bg-gradient-to-r from-violet-600 to-blue-600 rounded-3xl blur opacity-30 group-hover:opacity-40 transition duration-1000"></div>
+            <div className="relative group w-full max-w-xs transition duration-300 transform hover:scale-105 hover:-translate-y-2 hover:rotate-1 hover:shadow-2xl hover:cursor-pointer">
+              <div className="absolute inset-0.5 bg-gradient-to-r from-violet-600 to-blue-600 rounded-3xl blur opacity-30 group-hover:opacity-80 transition duration-500 animated-gradient"></div>
               <div className="relative bg-black/80 backdrop-blur-xl rounded-2xl p-6 sm:p-8 shadow-2xl border border-gray-800/50 space-y-6">
                 <div className="relative flex items-center gap-2">
                   <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-violet-600 to-blue-600 rounded-full">
@@ -91,13 +95,15 @@ function Home() {
                       <path d="M12 22V8" />
                     </svg>
                   </div>
-                  <p className="text-lg sm:text-xl font-bold text-white">Join Network</p>
+                  <p className="text-lg sm:text-xl font-bold text-white">
+                    Join Network
+                  </p>
                 </div>
               </div>
             </div>
 
-            <div className="relative group w-full max-w-xs">
-              <div className="absolute inset-0.5 bg-gradient-to-r from-violet-600 to-blue-600 rounded-3xl blur opacity-30 group-hover:opacity-40 transition duration-1000"></div>
+            <div className="relative group w-full max-w-xs transition duration-300 transform hover:scale-105 hover:-translate-y-2 hover:rotate-1 hover:shadow-2xl hover:cursor-pointer">
+              <div className="absolute inset-0.5 bg-gradient-to-r from-violet-600 to-blue-600 rounded-3xl blur opacity-30 group-hover:opacity-80 transition duration-500 animated-gradient"></div>
               <div className="relative bg-black/80 backdrop-blur-xl rounded-2xl p-6 sm:p-8 shadow-2xl border border-gray-800/50 space-y-6">
                 <div className="relative flex items-center gap-2">
                   <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-violet-600 to-blue-600 rounded-full">
@@ -115,10 +121,12 @@ function Home() {
                       <path d="M12 22V8" />
                     </svg>
                   </div>
-                  <p className="text-lg sm:text-xl font-bold text-white">Create/join room</p>
+                  <p className="text-lg sm:text-xl font-bold text-white">
+                    Create/join room
+                  </p>
                 </div>
               </div>
-            </div>
+            </div>         
           </div>
         </div>
       </div>

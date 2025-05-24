@@ -33,3 +33,17 @@ body,
   font-family: "Monoton", cursive, "Segoe UI", "Arial", sans-serif !important;
   letter-spacing: 0.08em;
 }
+
+@keyframes gradient-move {
+  0%, 100% {
+    background-position: left;
+  }
+  50% {
+    background-position: right;
+  }
+}
+
+.animated-gradient {
+  background-size: 200% 200%;
+  animation: gradient-move 2s linear infinite;
+}
