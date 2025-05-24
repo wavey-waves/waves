@@ -7,6 +7,7 @@ import cors from 'cors';
 //imports
 import { connectDB } from './libs/db.js';
 import authRoutes from './routes/auth.routes.js';
+import { app, server } from './libs/socket.js';
 
 
 //setup
@@ -30,7 +31,7 @@ app.use('/api/auth', authRoutes);
 
 
 //server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server started on port: ${PORT}`);
   connectDB();
 })
