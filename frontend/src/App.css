@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+@keyframes gradient-x {
+  0%,
+  100% {
+    background-position: left;
+  }
+  50% {
+    background-position: right;
+  }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-x 3s ease infinite;
+}
+
+.waves-font {
+  font-family: "Monoton", cursive, "Segoe UI", "Arial", sans-serif !important;
+  letter-spacing: 0.08em;
+}
