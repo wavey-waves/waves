@@ -69,24 +69,47 @@ function JoinRoom({ onJoin, roomName = "Global" }) {
         const finalUsername = randomName;
         const finalColor = userColor;
         
-        // Create anonymous user in backend
-        const response = await axios.post('/api/auth/signup', {
-          userName: finalUsername,
-          color: finalColor,
-          isAnonymous: true
-        });
+        try {
+          // Try to login first (no password needed for anonymous)
+          const loginRes = await axios.post('/api/auth/login', {
+            userName: finalUsername
+          });
+          
+          const { id, userName, color } = loginRes.data;
+          localStorage.setItem('anonymousUsername', finalUsername);
+          localStorage.setItem('userColor', finalColor);
+          onJoin({
+            id,
+            username: userName,
+            color,
+            isAnonymous: true
+          });
+        } catch (loginErr) {
+          // If user doesn't exist, create new anonymous user
+          if (loginErr.response?.status === 400 && loginErr.response?.data?.message === "Invalid credentials") {
+            try {
+              const signupRes = await axios.post('/api/auth/signup', {
+                userName: finalUsername,
+                color: finalColor,
+                isAnonymous: true
+              });
 
-        const { _id, userName, color } = response.data;
-        
-        localStorage.setItem('anonymousUsername', randomName);
-        localStorage.setItem('userColor', userColor);
-
-        onJoin({
-          id: _id,
-          username: userName,
-          color,
-          isAnonymous: true
-        });
+              const { _id, userName, color } = signupRes.data;
+              localStorage.setItem('anonymousUsername', finalUsername);
+              localStorage.setItem('userColor', finalColor);
+              onJoin({
+                id: _id,
+                username: userName,
+                color,
+                isAnonymous: true
+              });
+            } catch (signupErr) {
+              setError(signupErr.response?.data?.message || "Failed to create anonymous user");
+            }
+          } else {
+            setError(loginErr.response?.data?.message || "Something went wrong");
+          }
+        }
       } else {
         // Handle custom account
         const finalColor = userColor || generateRandomColor();
