@@ -3,6 +3,10 @@ import express from 'express';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 
+//imports
+import { connectDB } from './libs/db.js';
+
+
 //setup
 const app = express();
 dotenv.config();
@@ -20,4 +24,5 @@ app.use(cookieParser());
 //server
 app.listen(PORT, () => {
   console.log(`Server started on port: ${PORT}`);
+  connectDB();
 })
