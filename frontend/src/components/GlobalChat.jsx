@@ -143,6 +143,7 @@ function GlobalChat() {
           <div 
             ref={messagesContainerRef}
             className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 sm:py-4 space-y-3 sm:space-y-4 custom-scrollbar"
+            style={{ paddingBottom: "100px" }}
           >
             {messages.map((message, index) => (
               <div
@@ -182,7 +183,7 @@ function GlobalChat() {
           </div>
 
           {/* Input Area - Fixed */}
-          <div className="flex-shrink-0 p-4 pb-15 border-t border-white/10 bg-black/40 backdrop-blur-xl">
+          <div className="fixed bottom-0 left-0 right-0 p-2 sm:p-4 border-t border-white/10 bg-black/40 backdrop-blur-xl">
             <form
               onSubmit={handleSendMessage}
               className="flex gap-2 max-w-4xl mx-auto"
@@ -192,15 +193,15 @@ function GlobalChat() {
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 placeholder="Type your message..."
-                className="flex-1 bg-white/5 text-white rounded-xl px-3 py-1.5 sm:px-4 sm:py-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-violet-600/50 border border-white/10"
+                className="flex-1 bg-white/5 text-white rounded-xl px-3 py-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-violet-600/50 border border-white/10"
               />
               <button
                 type="submit"
-                className="px-4 sm:px-6 py-1.5 sm:py-2 bg-gradient-to-r from-violet-600 to-blue-600 rounded-xl text-white hover:opacity-90 transition-opacity font-medium text-sm sm:text-base whitespace-nowrap flex items-center gap-1.5"
+                className="px-3 sm:px-6 py-2 bg-gradient-to-r from-violet-600 to-blue-600 rounded-xl text-white hover:opacity-90 transition-opacity font-medium text-sm sm:text-base whitespace-nowrap flex items-center gap-1.5"
               >
                 <svg 
                   xmlns="http://www.w3.org/2000/svg" 
-                  className="h-4 w-4 sm:h-5 sm:w-5" 
+                  className="h-5 w-5" 
                   fill="none" 
                   viewBox="0 0 24 24" 
                   stroke="currentColor"
@@ -236,6 +237,13 @@ function GlobalChat() {
             font-family: "Gloria Hallelujah", cursive;
             font-weight: 400;
             font-style: normal;
+          }
+
+          /* Add viewport height fix for mobile */
+          @supports (-webkit-touch-callout: none) {
+            .h-screen {
+              height: -webkit-fill-available;
+            }
           }
         `}</style>
       </div>
