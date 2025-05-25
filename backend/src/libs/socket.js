@@ -1,13 +1,13 @@
-import {Server} from 'socket.io';
-import http from 'http';
 import express from 'express';
+import { createServer } from 'http';
+import { Server as SocketServer } from 'socket.io';
 
 const app = express();
-const server = http.createServer(app);
+const server = createServer(app);
 
 const GLOBAL_ROOM = "global-room";
 
-const io = new Server(server, {
+const io = new SocketServer(server, {
   cors: {
     origin: ["http://localhost:5174", "http://localhost:5175", "http://localhost:5173"],
     credentials: true

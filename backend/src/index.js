@@ -15,7 +15,7 @@ import { app, server } from './libs/socket.js';
 //setup
 dotenv.config();
 
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3000;
 const __dirname = path.resolve();
 
 //middleware
@@ -35,9 +35,16 @@ if(process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, "../frontend/dist")));
 
   app.get('/:wildcard(*)', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend', 'dist', 'index.html'));
+    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
   })
 }
+
+app.use((err, req, res, next) => {
+  console.error(err);
+  res
+    .status(err.status || 500)
+    .json({ message: err.message || 'Internal Server Error' });
+});
 
 //server
 server.listen(PORT, () => {
