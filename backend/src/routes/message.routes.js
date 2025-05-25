@@ -5,8 +5,10 @@ import { protectedRoute } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
-router.get("/:id", protectedRoute, getMessages);
+// Get messages for a room
+router.get("/:roomName", protectedRoute, getMessages);
 
-router.post("/send/:id", protectedRoute, sendMessage);
+// Send message to a room
+router.post("/send/:roomName", protectedRoute, sendMessage);
 
 export default router;
