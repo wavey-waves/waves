@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import path from 'path';
+import requestIp from 'request-ip';
 
 //imports
 import { connectDB } from './libs/db.js';
@@ -14,13 +15,14 @@ import { app, server } from './libs/socket.js';
 
 //setup
 dotenv.config();
+app.set('trust proxy', true);
 
 const PORT = process.env.PORT || 3000;
 const __dirname = path.resolve();
 
 //middleware
 app.use(express.json());
-// app.use(express.Router());
+app.use(requestIp.mw());
 app.use(cookieParser());
 app.use(cors({
   origin: ['http://localhost:5174', 'http://localhost:5175', 'http://localhost:5173', 'https://waves-c53a.onrender.com', '13.228.225.19', '18.142.128.26', '54.254.162.138'],
