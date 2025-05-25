@@ -106,7 +106,7 @@ function Home() {
               </div>
             </div>
 
-            <div 
+            {/* <div 
               className="relative group w-full max-w-xs transition duration-300 transform hover:scale-105 hover:-translate-y-2 hover:rotate-1 hover:shadow-2xl hover:cursor-pointer"
               onClick={() => navigate("/create-room")}
             >
@@ -134,7 +134,7 @@ function Home() {
                   </p>
                 </div>
               </div>
-            </div>         
+            </div>          */}
           </div>
         </div>
       </div>

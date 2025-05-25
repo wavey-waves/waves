@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { uniqueNamesGenerator, adjectives, colors, animals } from "unique-names-generator";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
 // Configure axios defaults
@@ -17,6 +18,7 @@ const USER_COLORS = [
 ];
 
 function JoinRoom({ onJoin, roomName = "Global" }) {
+  const navigate = useNavigate();
   const [joinType, setJoinType] = useState("anonymous"); // "anonymous" or "custom"
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -176,6 +178,29 @@ function JoinRoom({ onJoin, roomName = "Global" }) {
       </div>
       {/* Modal content */}
       <div className="relative w-full max-w-md p-6 bg-black/40 backdrop-blur-sm rounded-2xl border border-white/10 shadow-2xl z-10">
+        <div className="absolute top-4 left-4">
+          <button
+            onClick={() => navigate("/")}
+            className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white/70 hover:text-white"
+            aria-label="Back to home"
+          >
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              className="h-5 w-5" 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M10 19l-7-7m0 0l7-7m-7 7h18" 
+              />
+            </svg>
+          </button>
+        </div>
+
         <h2 className="text-2xl font-bold text-center mb-6 bg-gradient-to-r from-violet-400 via-purple-700 to-indigo-500 bg-clip-text text-transparent">
           Join {roomName} Room
         </h2>
