@@ -6,6 +6,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 import GlobalChat from "./components/GlobalChat";
+import NetworkChat from "./components/NetworkChat";
 
 function Home() {
   const navigate = useNavigate();
@@ -147,6 +148,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/global-chat" element={<GlobalChat />} />
+        <Route path="/network-chat" element={<NetworkChat />} />
       </Routes>
     </Router>
   );

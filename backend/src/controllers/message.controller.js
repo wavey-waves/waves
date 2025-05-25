@@ -1,14 +1,13 @@
 import Message from '../models/message.model.js';
-
 import { io } from "../libs/socket.js";
-
-const GLOBAL_ROOM = "global-room";
 
 export const getMessages = async (req, res) => {
   try {
+    const roomName = req.params.roomName;
     const messages = await Message
-      .find({ room: GLOBAL_ROOM})
+      .find({ room: roomName })
       .populate('senderId', 'userName color isAnonymous')
+      .sort({ createdAt: 1 }) // Sort messages by creation time
       .lean();
     res.status(200).json(messages);
   } catch (error) {
@@ -21,31 +20,26 @@ export const sendMessage = async (req, res) => {
   try {
     const {text, image} = req.body;
     const senderId = req.user._id;
+    const roomName = req.params.roomName;
 
-    //to implement with cloudinary
-    /*
-      let imageUrl;
-      if (image) {
-        // const uploadResponse = await cloudinary.uploader.upload(image);
-        // imageUrl = uploadResponse.secure_url;
-        imageUrl = image; // Or just save the raw image data/URL
-      }
-    */
+    if (!text || text.trim() === '') {
+      return res.status(400).json({ error: "Message text is required" });
+    }
 
     const newMessage = new Message({
       senderId,
-      text,
-      // image: imageUrl,
-      room: GLOBAL_ROOM,
+      text: text.trim(),
+      room: roomName,
     });
 
     await newMessage.save();
 
-    // Populate the sender information using findById
+    // Populate the sender information
     const populated = await Message.findById(newMessage._id)
       .populate('senderId', 'userName color isAnonymous');
 
-    io.to(GLOBAL_ROOM).emit("chatMessage", populated);
+    // Emit to room
+    io.to(roomName).emit("chatMessage", populated);
 
     res.status(201).json(populated);
   } catch (error) {
