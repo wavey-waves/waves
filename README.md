@@ -118,9 +118,7 @@ npm run dev
 - JWT-based authentication
 - HTTP-only cookies
 - Password hashing with bcrypt
-- XSS protection
 - CORS configuration
-- Rate limiting
 - Input validation and sanitization
 
 ## 🤝 Contributing
