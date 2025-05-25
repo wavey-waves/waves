@@ -10,6 +10,7 @@ import requestIp from 'request-ip';
 import { connectDB } from './libs/db.js';
 import authRoutes from './routes/auth.routes.js';
 import messageRoutes from './routes/message.routes.js';
+import roomRoutes from './routes/room.routes.js';
 import { app, server } from './libs/socket.js';
 
 
@@ -32,6 +33,7 @@ app.use(cors({
 //Routes
 app.use('/api/auth', authRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/rooms", roomRoutes);
 
 if(process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, "../frontend/dist")));

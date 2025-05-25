@@ -1,8 +1,7 @@
-import User from "../models/user.model.js";
 import Room from "../models/room.model.js";
 import {getClientIp} from 'request-ip';
 
-const assignRoom = async (req, res) => {
+export const assignRoom = async (req, res) => {
   const ip = getClientIp(req);
   if(!ip) {
     return res.status(400).json({message: "Could not determine IP"});
