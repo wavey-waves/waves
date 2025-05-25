@@ -17,19 +17,6 @@ function NetworkChat() {
   const messagesContainerRef = useRef(null);
   const socketRef = useRef(null);
 
-  // Initialize socket connection
-  useEffect(() => {
-    socketRef.current = io(BACKEND_URL, {
-      withCredentials: true
-    });
-
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
-    };
-  }, []);
-
   const scrollToBottom = () => {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
@@ -41,49 +28,59 @@ function NetworkChat() {
     scrollToBottom();
   }, [messages]);
 
-  // Get assigned room and fetch messages when user joins
+  // Setup socket connection, room, and message handling
   useEffect(() => {
-    if (isJoined && user && socketRef.current) {
-      const setupRoom = async () => {
+    let currentRoom = null;
+
+    const setupSocketAndRoom = async () => {
+      if (isJoined && user) {
         try {
-          // First get assigned room based on IP
+          // Initialize socket if not already done
+          if (!socketRef.current) {
+            socketRef.current = io(BACKEND_URL, {
+              withCredentials: true
+            });
+          }
+
+          // Get assigned room based on IP
           const roomResponse = await axios.get("/api/rooms/assign");
-          setRoom(roomResponse.data);
+          currentRoom = roomResponse.data;
+          setRoom(currentRoom);
           
-          // Then fetch messages for this room
-          const messagesResponse = await axios.get(`/api/messages/${roomResponse.data.roomName}`);
+          // Fetch messages for this room
+          const messagesResponse = await axios.get(`/api/messages/${currentRoom.roomName}`);
           setMessages(messagesResponse.data);
 
           // Join the socket room
-          socketRef.current.emit("join", roomResponse.data.roomName);
+          socketRef.current.emit("join", currentRoom.roomName);
 
-          // Listen for new messages
+          // Setup message handler
           const handleNewMessage = (message) => {
             setMessages(prevMessages => [...prevMessages, message]);
           };
 
           socketRef.current.on("chatMessage", handleNewMessage);
-
-          // Return cleanup function
-          return async () => {
-            socketRef.current.off("chatMessage", handleNewMessage);
-            if (roomResponse.data.roomName) {
-              // Leave socket room and notify backend
-              socketRef.current.emit("leave", roomResponse.data.roomName);
-              try {
-                await axios.post(`/api/rooms/leave/${roomResponse.data.roomName}`);
-              } catch (error) {
-                console.error("Error leaving room:", error);
-              }
-            }
-          };
         } catch (error) {
           console.error("Error setting up room:", error);
         }
-      };
+      }
+    };
 
-      setupRoom();
-    }
+    setupSocketAndRoom();
+
+    // Cleanup function
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.off("chatMessage"); // Remove all chatMessage listeners
+        if (currentRoom?.roomName) {
+          socketRef.current.emit("leave", currentRoom.roomName);
+          // Don't await this since it's in cleanup
+          axios.post(`/api/rooms/leave/${currentRoom.roomName}`).catch(console.error);
+        }
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
   }, [isJoined, user]);
 
   const handleSendMessage = async (e) => {
@@ -93,7 +90,6 @@ function NetworkChat() {
         await axios.post(`/api/messages/send/${room.roomName}`, {
           text: newMessage.trim()
         });
-        // Clear input field after sending
         setNewMessage("");
       } catch (error) {
         console.error("Error sending message:", error);
@@ -106,17 +102,7 @@ function NetworkChat() {
     setIsJoined(true);
   };
 
-  const handleLeaveRoom = async () => {
-    if (room?.roomName && socketRef.current) {
-      try {
-        // Leave socket room
-        socketRef.current.emit("leave", room.roomName);
-        // Notify backend
-        await axios.post(`/api/rooms/leave/${room.roomName}`);
-      } catch (error) {
-        console.error("Error leaving room:", error);
-      }
-    }
+  const handleLeaveRoom = () => {
     setIsJoined(false);
     setUser(null);
     setMessages([]);
