@@ -6,8 +6,10 @@ import JoinRoom from "./JoinRoom";
 // Configure axios defaults
 axios.defaults.withCredentials = true;
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
 // Initialize Socket.IO
-const socket = io("http://localhost:5000", {
+const socket = io( BACKEND_URL, {
   withCredentials: true
 });
 
