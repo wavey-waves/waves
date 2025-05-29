@@ -171,8 +171,7 @@ function NetworkChat() {
           {/* Messages Area - Scrollable */}
           <div 
             ref={messagesContainerRef}
-            className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 sm:py-4 space-y-3 sm:space-y-4 custom-scrollbar"
-            style={{ paddingBottom: "100px" }}
+            className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 sm:py-4 space-y-3 sm:space-y-4 custom-scrollbar pb-[100px] sm:pb-[120px]"
           >
             {messages.map((message, index) => (
               <div
@@ -181,7 +180,7 @@ function NetworkChat() {
                   message.senderId._id === user.id ? "justify-end" : "justify-start"
                 }`}
               >
-                <div className="max-w-[85%] sm:max-w-[70%]">
+                <div className="max-w-[85%] sm:max-w-[70%] relative z-0">
                   <div
                     className={`text-xs sm:text-sm font-semibold mb-1 ${
                       message.senderId._id === user.id
@@ -211,7 +210,7 @@ function NetworkChat() {
           </div>
 
           {/* Input Area - Fixed */}
-          <div className="fixed bottom-0 left-0 right-0 p-2 sm:p-4 border-t border-white/10 bg-black/40 backdrop-blur-xl">
+          <div className="fixed bottom-0 left-0 right-0 p-2 sm:p-4 border-t border-white/10 bg-black/90 backdrop-blur-xl z-30">
             <form
               onSubmit={handleSendMessage}
               className="flex gap-2 max-w-4xl mx-auto"
