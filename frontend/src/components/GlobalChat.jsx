@@ -142,14 +142,14 @@ function GlobalChat() {
           {/* Messages Area - Scrollable */}
           <div 
             ref={messagesContainerRef}
-            className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 sm:py-4 space-y-3 sm:space-y-4 custom-scrollbar pb-[100px] sm:pb-[120px]"
+            className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 sm:py-4 space-y-3 sm:space-y-4 custom-scrollbar pb-[140px] md:pb-[120px]"
           >
             {messages.map((message, index) => (
               <div
                 key={message._id || index}
                 className={`flex ${
                   message.senderId._id === user.id ? "justify-end" : "justify-start"
-                }`}
+                } mb-2`}
               >
                 <div className="max-w-[85%] sm:max-w-[70%] relative z-0">
                   <div
@@ -166,7 +166,7 @@ function GlobalChat() {
                     {/* {message.senderId.isAnonymous && " (Anonymous)"} */}
                   </div>
                   <div
-                    className={`rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 backdrop-blur-sm border text-white`}
+                    className={`rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 backdrop-blur-sm border text-white mb-1`}
                     style={{
                       backgroundColor: message.senderId._id === user.id ? '#7c3aed20' : `${message.senderId.color}20`,
                       borderColor: message.senderId._id === user.id ? '#7c3aed30' : `${message.senderId.color}30`
