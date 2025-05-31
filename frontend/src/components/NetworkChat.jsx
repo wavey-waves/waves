@@ -354,9 +354,9 @@ function NetworkChat() {
 
           <style jsx global>{`
             .text_scroll::-webkit-scrollbar {
-              width: 0px; !important
-              height: 0px; !important
-            }            
+              width: 0px !important;
+              height: 0px !important;
+            }
             .custom-scrollbar::-webkit-scrollbar {
               width: 6px;
             }
