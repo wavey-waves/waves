@@ -11,14 +11,15 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.7",
+    "@vitejs/plugin-react": "^4.4.1",
     "axios": "^1.9.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.0",
+    "react-toastify": "^11.0.5",
     "socket.io-client": "^4.8.1",
     "tailwindcss": "^4.1.7",
-    "unique-names-generator": "^4.7.1",
-    "@vitejs/plugin-react": "^4.4.1"
+    "unique-names-generator": "^4.7.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
