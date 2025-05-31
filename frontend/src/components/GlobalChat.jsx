@@ -291,7 +291,7 @@ function GlobalChat() {
                 className={`px-3 sm:px-6 py-2 bg-gradient-to-r from-violet-600 to-blue-600 rounded-xl text-white hover:opacity-90 transition-opacity font-medium text-sm sm:text-base whitespace-nowrap flex items-center gap-1.5 ${
                   !newMessage.trim() ||
                   newMessage.length > CHARACTER_LIMIT ||
-                  Date.now() - lastSent < 500
+                  Date.now() - lastSent < THROTTLE_DELAY
                     ? "opacity-50 cursor-not-allowed"
                     : ""
                 }`}
