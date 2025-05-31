@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
 import JoinRoom from "./JoinRoom";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 // Configure axios defaults
 axios.defaults.withCredentials = true;
@@ -19,6 +21,8 @@ function NetworkChat() {
   const CHARACTER_LIMIT = 1000;
   const CHARACTER_WARNING = 900;
   const textareaRef = useRef(null);
+  const [lastSent, setLastSent] = useState(0);
+  const THROTTLE_DELAY = 1000;
 
   // Add viewport height handling
   useEffect(() => {
@@ -110,16 +114,31 @@ function NetworkChat() {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (newMessage.trim() && room && socketRef.current) {
+    const now = Date.now();
+    if (!newMessage.trim()) {
+      toast.error("Message cannot be empty.");
+      return;
+    }
+    if (newMessage.length > CHARACTER_LIMIT) {
+      toast.error("Message exceeds character limit.");
+      return;
+    }
+    if (now - lastSent < 500) {
+      toast.error("You're sending messages too quickly.");
+      return;
+    }
+    if (room && socketRef.current) {
       try {
         await axios.post(`/api/messages/send/${room.roomName}`, {
           text: newMessage.trim(),
         });
         setNewMessage("");
+        setLastSent(now);
         if (textareaRef.current) {
           textareaRef.current.style.height = "40px";
         }
       } catch (error) {
+        toast.error("Error sending message.");
         console.error("Error sending message:", error);
       }
     }
@@ -143,6 +162,7 @@ function NetworkChat() {
 
   return (
     <>
+      <ToastContainer position="bottom-right" autoClose={2500} theme="dark" />
       <link
         href="https://fonts.googleapis.com/css2?family=Gloria+Hallelujah&display=swap"
         rel="stylesheet"
@@ -299,7 +319,18 @@ function NetworkChat() {
               </div>
               <button
                 type="submit"
-                className="px-3 sm:px-6 py-2 bg-gradient-to-r from-emerald-600 to-cyan-600 rounded-xl text-white hover:opacity-90 transition-opacity font-medium text-sm sm:text-base whitespace-nowrap flex items-center gap-1.5"
+                disabled={
+                  !newMessage.trim() ||
+                  newMessage.length > CHARACTER_LIMIT ||
+                  Date.now() - lastSent < THROTTLE_DELAY
+                }
+                className={`px-3 sm:px-6 py-2 bg-gradient-to-r from-emerald-600 to-cyan-600 rounded-xl text-white hover:opacity-90 transition-opacity font-medium text-sm sm:text-base whitespace-nowrap flex items-center gap-1.5 ${
+                  !newMessage.trim() ||
+                  newMessage.length > CHARACTER_LIMIT ||
+                  Date.now() - lastSent < THROTTLE_DELAY
+                    ? "opacity-50 cursor-not-allowed"
+                    : ""
+                }`}
                 style={{ height: "40px", minHeight: "40px", alignSelf: "end" }}
               >
                 <svg
