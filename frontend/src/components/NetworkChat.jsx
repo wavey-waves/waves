@@ -123,7 +123,7 @@ function NetworkChat() {
       toast.error("Message exceeds character limit.");
       return;
     }
-    if (now - lastSent < 500) {
+    if (now - lastSent < THROTTLE_DELAY) {
       toast.error("You're sending messages too quickly.");
       return;
     }
