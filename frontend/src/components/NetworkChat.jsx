@@ -10,6 +10,13 @@ axios.defaults.withCredentials = true;
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
+/**
+ * Renders a real-time chat room interface with user join, message sending, and live updates.
+ *
+ * Provides a chat experience with socket-based real-time messaging, message history, input validation, character limits, throttling, and toast notifications. Handles user join/leave, room assignment, and message display with styled UI components.
+ *
+ * @returns {JSX.Element} The rendered chat room component.
+ */
 function NetworkChat() {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");

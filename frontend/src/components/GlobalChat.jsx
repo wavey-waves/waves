@@ -15,6 +15,13 @@ const socket = io(BACKEND_URL, {
   withCredentials: true,
 });
 
+/**
+ * Renders a real-time global chat room with message history, live updates, and user authentication.
+ *
+ * Users can join the chat, view the latest 50 messages, and send new messages with input validation and throttling. The chat interface updates in real time via Socket.IO and provides feedback for input errors and sending restrictions.
+ *
+ * @returns {JSX.Element} The rendered global chat component.
+ */
 function GlobalChat() {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
