@@ -1,4 +1,4 @@
-# 🌊 Waves - Real-time Chat Application
+# Waves - Real-time Chat Application
 
 Waves is a modern, real-time chat application that offers both global and network-based chat rooms. Built with React, Node.js, and Socket.IO, it features a beautiful, responsive UI and seamless real-time communication.
 
@@ -29,6 +29,9 @@ Waves is a modern, real-time chat application that offers both global and networ
 - Real-time typing indicators
 - Message timestamps
 - Auto-scroll to latest messages
+- Character counter and limit warning
+- Send button disables and rate-limits
+- Error toasts for empty/long/too-fast messages
 
 ## 🚀 Getting Started
 
@@ -88,6 +91,7 @@ npm run dev
 - Axios
 - TailwindCSS
 - React Router
+- react-toastify
 
 ### Backend
 - Node.js
