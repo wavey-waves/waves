@@ -20,6 +20,16 @@ function GlobalChat() {
   const [user, setUser] = useState(null);
   const messagesContainerRef = useRef(null);
 
+  // Add viewport height handling
+  useEffect(() => {
+    function setVh() {
+      document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+    }
+    setVh();
+    window.addEventListener('resize', setVh);
+    return () => window.removeEventListener('resize', setVh);
+  }, []);
+
   const scrollToBottom = () => {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
@@ -238,11 +248,9 @@ function GlobalChat() {
             font-style: normal;
           }
 
-          /* Add viewport height fix for mobile */
-          @supports (-webkit-touch-callout: none) {
-            .h-screen {
-              height: -webkit-fill-available;
-            }
+          /* Use custom viewport height */
+          .h-screen {
+            height: calc(var(--vh, 1vh) * 100);
           }
         `}</style>
       </div>
