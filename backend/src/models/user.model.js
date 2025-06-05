@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 
+const DAYS_TO_MS = 24 * 60 * 60 * 1000;
+
 const userSchema = new mongoose.Schema({
   userName: {
     type: String,
@@ -19,9 +21,22 @@ const userSchema = new mongoose.Schema({
   isAnonymous: {
     type: Boolean,
     default: false
+  },
+  expiresAt: {
+    type: Date,
+    index: { expires: 0 },
   }
 }, {
   timestamps: true,
+});
+
+userSchema.pre('save', function (next) {
+  if (this.isAnonymous) {
+    this.expiresAt = new Date(Date.now() + 7 * DAYS_TO_MS); // 1 week
+  } else {
+    this.expiresAt = new Date(Date.now() + 365 * DAYS_TO_MS); // 1 year
+  }
+  next();
 });
 
 const User = mongoose.model("Users", userSchema);

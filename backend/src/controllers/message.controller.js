@@ -1,6 +1,8 @@
 import Message from '../models/message.model.js';
 import { io } from "../libs/socket.js";
 
+const NO_OF_MESSAGES = 1000;
+
 export const getMessages = async (req, res) => {
   try {
     const roomName = req.params.roomName;
@@ -45,5 +47,29 @@ export const sendMessage = async (req, res) => {
   } catch (error) {
     console.log("Error in sendMessage controller: ", error.message);
     res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+export const cleanupMessages = async (req, res) => {
+  try {
+    const rooms = await Message.distinct("room");
+
+    for (const room of rooms) {
+      const messages = await Message.find({ room })
+        .sort({ createdAt: -1 }) // newest first
+        .skip(NO_OF_MESSAGES)               // skip top n
+        .select("_id");
+
+      const idsToDelete = messages.map((msg) => msg._id);
+      if (idsToDelete.length > 0) {
+        await Message.deleteMany({ _id: { $in: idsToDelete } });
+        console.log(`Cleaned ${idsToDelete.length} messages in room "${room}"`);
+      }
+    }
+
+    return res.status(200).json({ message: "Cleanup completed successfully" });
+  } catch (error) {
+    console.error("Error in cleanupMessages controller:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
