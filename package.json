@@ -10,8 +10,5 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "react-toastify": "^11.0.5"
-  }
+  "type": "commonjs"
 }
