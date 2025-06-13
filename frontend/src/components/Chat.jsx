@@ -211,8 +211,8 @@ function Chat({ roomType, user }) {
             </div>
             <button
               onClick={() => navigate('/')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r ${colors.button} text-white hover:opacity-90 transition-opacity`}
-              aria-label="Back to home"
+              className={`p-2 rounded-lg bg-gradient-to-r ${colors.button} hover:opacity-90 transition-opacity text-white flex items-center gap-1.5 border ${colors.border} backdrop-blur-sm`}
+              aria-label="Go back to home"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -228,7 +228,7 @@ function Chat({ roomType, user }) {
                   d="M10 19l-7-7m0 0l7-7m-7 7h18"
                 />
               </svg>
-              <span className="hidden sm:inline">Back</span>
+              <span className="hidden sm:inline font-medium">Back</span>
             </button>
           </div>
 

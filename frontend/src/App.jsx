@@ -157,25 +157,38 @@ function ChatRoute() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    let isMounted = true;
+
     const checkAuth = async () => {
       try {
         // Try to get current user from session using the check endpoint
         const response = await axios.get('/api/auth/check');
-        setUser({
-          id: response.data._id,
-          username: response.data.userName,
-          color: response.data.color,
-          isAnonymous: response.data.isAnonymous
-        });
+        if (isMounted) {
+          setUser({
+            id: response.data._id,
+            username: response.data.userName,
+            color: response.data.color,
+            isAnonymous: response.data.isAnonymous
+          });
+        }
       } catch (error) {
         // If no valid session, redirect to home
-        navigate('/', { replace: true });
+        if (isMounted) {
+          navigate('/', { replace: true });
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
     checkAuth();
+
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      isMounted = false;
+    };
   }, [navigate]);
 
   if (isLoading) {
