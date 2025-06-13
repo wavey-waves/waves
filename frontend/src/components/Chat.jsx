@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
 import { toast, ToastContainer } from "react-toastify";
+import { useNavigate } from "react-router-dom";
 import "react-toastify/dist/ReactToastify.css";
 
 // Configure axios defaults
@@ -20,6 +21,7 @@ function Chat({ roomType, user }) {
   const textareaRef = useRef(null);
   const [lastSent, setLastSent] = useState(0);
   const THROTTLE_DELAY = 1000;
+  const navigate = useNavigate();
 
   // Add viewport height handling
   useEffect(() => {
@@ -207,6 +209,27 @@ function Chat({ roomType, user }) {
                 </span>
               )}
             </div>
+            <button
+              onClick={() => navigate('/')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r ${colors.button} text-white hover:opacity-90 transition-opacity`}
+              aria-label="Back to home"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                />
+              </svg>
+              <span className="hidden sm:inline">Back</span>
+            </button>
           </div>
 
           {/* Messages Area - Scrollable */}
