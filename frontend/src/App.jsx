@@ -10,6 +10,13 @@ import {
 import Chat from "./components/Chat";
 import JoinRoom from "./components/JoinRoom";
 
+/**
+ * Renders the home page for selecting and joining a chat room.
+ *
+ * Displays interactive cards for "Global" and "Network" chat rooms. When a card is selected, a modal appears for the user to join the chosen room. Upon successful join, invokes the provided callback with user data and navigates to the corresponding chat room.
+ *
+ * @param {{ onJoinRoom: function(Object, string): void }} props - Callback invoked after a successful room join, receiving user data and the selected room type.
+ */
 function Home({ onJoinRoom }) {
   const navigate = useNavigate();
   const [showJoinRoom, setShowJoinRoom] = useState(false);
@@ -135,6 +142,14 @@ function Home({ onJoinRoom }) {
   );
 }
 
+/**
+ * Main application component that manages user state and routing.
+ *
+ * Sets up routes for the home page and chat rooms, handling user authentication and room selection.
+ * Redirects users to the home page if they attempt to access a chat room without joining.
+ *
+ * @returns {JSX.Element} The root application component with routing.
+ */
 function App() {
   const [user, setUser] = useState(null);
   const [roomType, setRoomType] = useState(null);

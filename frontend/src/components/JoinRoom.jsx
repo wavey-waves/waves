@@ -17,6 +17,16 @@ const USER_COLORS = [
   '#f97316', // Orange
 ];
 
+/**
+ * Displays a modal for joining a chat room, allowing users to join anonymously with a random username or with a custom account.
+ *
+ * Users can generate a random anonymous identity or create/login to a custom account. Handles authentication, user state, and error feedback. On successful join, invokes the {@link onJoin} callback with user details. The modal can be closed via the {@link onClose} callback.
+ *
+ * @param {Object} props
+ * @param {Function} props.onJoin - Callback invoked with user data after successful join.
+ * @param {string} [props.roomName="Global"] - Name of the chat room to display in the modal.
+ * @param {Function} props.onClose - Callback invoked when the modal or overlay is closed.
+ */
 function JoinRoom({ onJoin, roomName = "Global", onClose }) {
   const navigate = useNavigate();
   const [joinType, setJoinType] = useState("anonymous"); // "anonymous" or "custom"

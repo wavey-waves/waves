@@ -9,6 +9,17 @@ axios.defaults.withCredentials = true;
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
+/**
+ * Displays a real-time chat interface for either a global or network-specific room.
+ *
+ * Provides live messaging using WebSocket and REST APIs, supports message history, user-specific theming, character limits, and input throttling. The component automatically manages joining and leaving rooms, handles reconnection, and adapts its UI based on the selected room type and user.
+ *
+ * @param {Object} props
+ * @param {"global"|"network"} props.roomType - Determines the chat room type and theming.
+ * @param {Object} props.user - The current user participating in the chat.
+ *
+ * @returns {JSX.Element} The rendered chat interface.
+ */
 function Chat({ roomType, user }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
