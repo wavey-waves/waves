@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 const DAYS_TO_MS = 24 * 60 * 60 * 1000;
-const MESSAGE_EXPIRY = 7 * DAYS_TO_MS; //7 days
+const MESSAGE_EXPIRY = 31 * DAYS_TO_MS; //31 days
 
 const messageSchema = new mongoose.Schema(
   {
