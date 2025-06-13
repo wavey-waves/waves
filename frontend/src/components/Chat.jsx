@@ -11,7 +11,6 @@ axios.defaults.withCredentials = true;
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 function Chat({ roomType, user }) {
-  const navigate = useNavigate();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [roomInfo, setRoomInfo] = useState(null);
@@ -22,6 +21,7 @@ function Chat({ roomType, user }) {
   const textareaRef = useRef(null);
   const [lastSent, setLastSent] = useState(0);
   const THROTTLE_DELAY = 1000;
+  const navigate = useNavigate();
 
   // Add viewport height handling
   useEffect(() => {
