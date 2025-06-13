@@ -1,15 +1,30 @@
 import "./App.css";
+import { useState } from "react";
 import {
   BrowserRouter as Router,
   Routes,
   Route,
   useNavigate,
+  Navigate,
 } from "react-router-dom";
-import GlobalChat from "./components/GlobalChat";
-import NetworkChat from "./components/NetworkChat";
+import Chat from "./components/Chat";
+import JoinRoom from "./components/JoinRoom";
 
-function Home() {
+function Home({ onJoinRoom }) {
   const navigate = useNavigate();
+  const [showJoinRoom, setShowJoinRoom] = useState(false);
+  const [selectedRoomType, setSelectedRoomType] = useState(null);
+
+  const handleRoomSelect = (roomType) => {
+    setSelectedRoomType(roomType);
+    setShowJoinRoom(true);
+  };
+
+  const handleJoinSuccess = (userData) => {
+    onJoinRoom(userData, selectedRoomType);
+    setShowJoinRoom(false);
+    navigate(`/chat/${selectedRoomType}`);
+  };
 
   return (
     <>
@@ -51,7 +66,7 @@ function Home() {
 
             <div 
               className="relative group w-full max-w-xs transition duration-300 transform hover:scale-105 hover:-translate-y-2 hover:rotate-1 hover:shadow-2xl hover:cursor-pointer"
-              onClick={() => navigate("/global-chat")}
+              onClick={() => handleRoomSelect("global")}
             >
               <div className="absolute inset-0.5 bg-gradient-to-r from-violet-600 to-blue-600 rounded-3xl blur opacity-30 group-hover:opacity-80 transition duration-500 animated-gradient"></div>
               <div className="relative bg-black/80 backdrop-blur-xl rounded-2xl p-6 sm:p-8 shadow-2xl border border-gray-800/50 space-y-6">
@@ -80,7 +95,7 @@ function Home() {
 
             <div 
               className="relative group w-full max-w-xs transition duration-300 transform hover:scale-105 hover:-translate-y-2 hover:rotate-1 hover:shadow-2xl hover:cursor-pointer"
-              onClick={() => navigate("/network-chat")}
+              onClick={() => handleRoomSelect("network")}
             >
               <div className="absolute inset-0.5 bg-gradient-to-r from-emerald-600 to-cyan-600 rounded-3xl blur opacity-30 group-hover:opacity-80 transition duration-500 animated-gradient"></div>
               <div className="relative bg-black/80 backdrop-blur-xl rounded-2xl p-6 sm:p-8 shadow-2xl border border-gray-800/50 space-y-6">
@@ -105,50 +120,44 @@ function Home() {
                 </div>
               </div>
             </div>
-
-            {/* <div 
-              className="relative group w-full max-w-xs transition duration-300 transform hover:scale-105 hover:-translate-y-2 hover:rotate-1 hover:shadow-2xl hover:cursor-pointer"
-              onClick={() => navigate("/create-room")}
-            >
-              <div className="absolute inset-0.5 bg-gradient-to-r from-violet-600 to-blue-600 rounded-3xl blur opacity-30 group-hover:opacity-80 transition duration-500 animated-gradient"></div>
-              <div className="relative bg-black/80 backdrop-blur-xl rounded-2xl p-6 sm:p-8 shadow-2xl border border-gray-800/50 space-y-6">
-                <div className="relative flex items-center gap-2">
-                  <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-violet-600 to-blue-600 rounded-full">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="w-5 h-5 sm:w-6 sm:h-6 text-white"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="12" y1="8" x2="12" y2="16" />
-                      <line x1="8" y1="12" x2="16" y2="12" />
-                    </svg>
-                  </div>
-                  <p className="text-lg sm:text-xl font-bold text-white">
-                    Create/join room
-                  </p>
-                </div>
-              </div>
-            </div>          */}
           </div>
         </div>
       </div>
+
+      {showJoinRoom && (
+        <JoinRoom 
+          onJoin={handleJoinSuccess} 
+          roomName={selectedRoomType === "global" ? "Global" : "Network"} 
+          onClose={() => setShowJoinRoom(false)}
+        />
+      )}
     </>
   );
 }
 
 function App() {
+  const [user, setUser] = useState(null);
+  const [roomType, setRoomType] = useState(null);
+
+  const handleJoinRoom = (userData, type) => {
+    setUser(userData);
+    setRoomType(type);
+  };
+
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/global-chat" element={<GlobalChat />} />
-        <Route path="/network-chat" element={<NetworkChat />} />
+        <Route path="/" element={<Home onJoinRoom={handleJoinRoom} />} />
+        <Route 
+          path="/chat/:roomType" 
+          element={
+            user && roomType ? (
+              <Chat roomType={roomType} user={user} />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          } 
+        />
       </Routes>
     </Router>
   );

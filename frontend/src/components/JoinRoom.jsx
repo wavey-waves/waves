@@ -17,7 +17,7 @@ const USER_COLORS = [
   '#f97316', // Orange
 ];
 
-function JoinRoom({ onJoin, roomName = "Global" }) {
+function JoinRoom({ onJoin, roomName = "Global", onClose }) {
   const navigate = useNavigate();
   const [joinType, setJoinType] = useState("anonymous"); // "anonymous" or "custom"
   const [username, setUsername] = useState("");
@@ -167,6 +167,7 @@ function JoinRoom({ onJoin, roomName = "Global" }) {
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50">
       {/* Dashboard-like gradient background */}
+      <div className="absolute inset-0 z-0 bg-black/50 backdrop-blur-sm" onClick={onClose}></div>
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-b from-slate-950 to-black"></div>
         <div className="absolute inset-0 bg-gradient-to-tr from-blue-600/5 via-transparent to-purple-600/5"></div>
@@ -178,11 +179,11 @@ function JoinRoom({ onJoin, roomName = "Global" }) {
       </div>
       {/* Modal content */}
       <div className="relative w-full max-w-md p-6 bg-black/40 backdrop-blur-sm rounded-2xl border border-white/10 shadow-2xl z-10">
-        <div className="absolute top-4 left-4">
+        <div className="absolute top-4 right-4">
           <button
-            onClick={() => navigate("/")}
+            onClick={onClose}
             className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white/70 hover:text-white"
-            aria-label="Back to home"
+            aria-label="Close"
           >
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
@@ -195,7 +196,7 @@ function JoinRoom({ onJoin, roomName = "Global" }) {
                 strokeLinecap="round" 
                 strokeLinejoin="round" 
                 strokeWidth={2} 
-                d="M10 19l-7-7m0 0l7-7m-7 7h18" 
+                d="M6 18L18 6M6 6l12 12" 
               />
             </svg>
           </button>

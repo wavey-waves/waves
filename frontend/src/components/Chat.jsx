@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
-import JoinRoom from "./JoinRoom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -10,12 +9,10 @@ axios.defaults.withCredentials = true;
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-function NetworkChat() {
+function Chat({ roomType, user }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
-  const [isJoined, setIsJoined] = useState(false);
-  const [user, setUser] = useState(null);
-  const [room, setRoom] = useState(null);
+  const [roomInfo, setRoomInfo] = useState(null);
   const messagesContainerRef = useRef(null);
   const socketRef = useRef(null);
   const CHARACTER_LIMIT = 1000;
@@ -49,68 +46,79 @@ function NetworkChat() {
     scrollToBottom();
   }, [messages]);
 
-  // Setup socket connection, room, and message handling
+  // Setup socket connection and fetch initial data
   useEffect(() => {
     let currentRoom = null;
 
-    const setupSocketAndRoom = async () => {
-      if (isJoined && user) {
-        try {
-          // Initialize socket if not already done
-          if (!socketRef.current) {
-            socketRef.current = io(BACKEND_URL, {
-              withCredentials: true,
-            });
-          }
-
-          // Get assigned room based on IP
+    const setupSocketAndFetchData = async () => {
+      try {
+        if (roomType === "network") {
+          // Fetch room info for network rooms
           const roomResponse = await axios.get("/api/rooms/assign");
-          currentRoom = roomResponse.data;
-          setRoom(currentRoom);
+          setRoomInfo(roomResponse.data);
+          currentRoom = roomResponse.data.roomName;
+        } else {
+          currentRoom = "global-room";
+        }
 
-          // Fetch messages for this room
-          const messagesResponse = await axios.get(
-            `/api/messages/${currentRoom.roomName}`
-          );
-          setMessages(
-            Array.isArray(messagesResponse.data)
-              ? messagesResponse.data.slice(-50)
-              : []
-          );
-
-          // Join the socket room
-          socketRef.current.emit("join", currentRoom.roomName);
+        // Initialize socket if not already done
+        if (!socketRef.current) {
+          socketRef.current = io(BACKEND_URL, {
+            withCredentials: true,
+          });
 
           // Setup message handler
-          const handleNewMessage = (message) => {
+          socketRef.current.on("chatMessage", (message) => {
             setMessages((prevMessages) => [...prevMessages, message]);
-          };
+          });
 
-          socketRef.current.on("chatMessage", handleNewMessage);
-        } catch (error) {
-          console.error("Error setting up room:", error);
+          // Setup error handler
+          socketRef.current.on("error", (error) => {
+            console.error("Socket error:", error);
+            toast.error("Connection error. Please try refreshing the page.");
+          });
+
+          // Setup reconnection handler
+          socketRef.current.on("reconnect", () => {
+            toast.success("Reconnected to chat server");
+            // Rejoin room after reconnection
+            if (currentRoom) {
+              socketRef.current.emit("join", currentRoom);
+            }
+          });
         }
+
+        // Join the room
+        socketRef.current.emit("join", currentRoom);
+
+        // Fetch existing messages
+        const endpoint = roomType === "global" ? "/api/messages/global-room" : `/api/messages/${currentRoom}`;
+        const response = await axios.get(endpoint);
+        setMessages(Array.isArray(response.data) ? response.data.slice(-50) : []);
+      } catch (error) {
+        console.error("Error setting up socket or fetching data:", error);
+        toast.error("Failed to connect to chat server");
       }
     };
 
-    setupSocketAndRoom();
+    if (user) {
+      setupSocketAndFetchData();
+    }
 
     // Cleanup function
     return () => {
       if (socketRef.current) {
-        socketRef.current.off("chatMessage"); // Remove all chatMessage listeners
-        if (currentRoom?.roomName) {
-          socketRef.current.emit("leave", currentRoom.roomName);
-          // Don't await this since it's in cleanup
-          axios
-            .post(`/api/rooms/leave/${currentRoom.roomName}`)
-            .catch(console.error);
+        if (currentRoom) {
+          socketRef.current.emit("leave", currentRoom);
         }
+        socketRef.current.off("chatMessage");
+        socketRef.current.off("error");
+        socketRef.current.off("reconnect");
         socketRef.current.disconnect();
         socketRef.current = null;
       }
     };
-  }, [isJoined, user]);
+  }, [user, roomType]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -127,38 +135,43 @@ function NetworkChat() {
       toast.error("You're sending messages too quickly.");
       return;
     }
-    if (room && socketRef.current) {
-      try {
-        await axios.post(`/api/messages/send/${room.roomName}`, {
-          text: newMessage.trim(),
-        });
-        setNewMessage("");
-        setLastSent(now);
-        if (textareaRef.current) {
-          textareaRef.current.style.height = "40px";
-        }
-      } catch (error) {
-        toast.error("Error sending message.");
-        console.error("Error sending message:", error);
+    try {
+      const endpoint = roomType === "global" ? "/api/messages/send/global-room" : `/api/messages/send/${roomInfo?.roomName || ""}`;
+      await axios.post(endpoint, {
+        text: newMessage.trim(),
+      });
+      setNewMessage("");
+      setLastSent(now);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "40px";
       }
+    } catch (error) {
+      toast.error("Error sending message.");
+      console.error("Error sending message:", error);
     }
   };
 
-  const handleJoin = (userData) => {
-    setUser(userData);
-    setIsJoined(true);
+  const getGradientColors = () => {
+    return roomType === "global" 
+      ? {
+          from: "from-violet-400 via-purple-700 to-indigo-500",
+          button: "from-violet-600 to-blue-600",
+          bg: "from-violet-600/5 via-transparent to-purple-600/5",
+          accent: "from-violet-300 via-purple-400 to-indigo-300",
+          border: "border-violet-500/20",
+          userColor: "#7c3aed"
+        }
+      : {
+          from: "from-emerald-400 via-teal-500 to-cyan-500",
+          button: "from-emerald-600 to-cyan-600",
+          bg: "from-emerald-600/5 via-transparent to-cyan-600/5",
+          accent: "from-emerald-300 via-teal-400 to-cyan-300",
+          border: "border-emerald-500/20",
+          userColor: "#10b981"
+        };
   };
 
-  const handleLeaveRoom = () => {
-    setIsJoined(false);
-    setUser(null);
-    setMessages([]);
-    setRoom(null);
-  };
-
-  if (!isJoined) {
-    return <JoinRoom onJoin={handleJoin} roomName="Network" />;
-  }
+  const colors = getGradientColors();
 
   return (
     <>
@@ -170,9 +183,9 @@ function NetworkChat() {
       <div className="relative h-screen flex flex-col bg-black">
         <div className="fixed inset-0 z-0">
           <div className="absolute inset-0 bg-gradient-to-b from-slate-950 to-black"></div>
-          <div className="absolute inset-0 bg-gradient-to-tr from-emerald-600/5 via-transparent to-cyan-600/5"></div>
+          <div className={`absolute inset-0 bg-gradient-to-tr ${colors.bg}`}></div>
           <div className="absolute inset-0">
-            <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/10 via-transparent to-cyan-500/10 animate-gradient"></div>
+            <div className={`absolute inset-0 bg-gradient-to-tr ${colors.bg} animate-gradient`}></div>
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
             <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
           </div>
@@ -182,44 +195,24 @@ function NetworkChat() {
           {/* Header - Fixed */}
           <div className="flex-shrink-0 flex items-center justify-between p-2 sm:p-3 md:p-4 border-b border-white/10">
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-              <h1 className="font text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-emerald-400 via-teal-500 to-cyan-500 bg-clip-text text-transparent">
-                Network room
+              <h1 className={`font text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r ${colors.from} bg-clip-text text-transparent`}>
+                {roomType === "global" ? "Global" : "Network"} room
               </h1>
-              <span className="text-xs sm:text-sm font-medium bg-gradient-to-r from-emerald-300 via-teal-400 to-cyan-300 bg-clip-text text-transparent px-2 py-0.5 sm:py-1 rounded-full border border-emerald-500/20 backdrop-blur-sm">
+              <span className={`text-xs sm:text-sm font-medium bg-gradient-to-r ${colors.accent} bg-clip-text text-transparent px-2 py-0.5 sm:py-1 rounded-full border ${colors.border} backdrop-blur-sm`}>
                 {user.username}
               </span>
-              {room && (
-                <span className="text-xs sm:text-sm font-medium bg-gradient-to-r from-emerald-300 via-teal-400 to-cyan-300 bg-clip-text text-transparent px-2 py-0.5 sm:py-1 rounded-full border border-emerald-500/20 backdrop-blur-sm">
-                  {room.roomName}
+              {roomType === "network" && roomInfo && (
+                <span className={`text-xs sm:text-sm font-medium bg-gradient-to-r ${colors.accent} bg-clip-text text-transparent px-2 py-0.5 sm:py-1 rounded-full border ${colors.border} backdrop-blur-sm`}>
+                  {roomInfo.roomName}
                 </span>
               )}
             </div>
-            <button
-              onClick={handleLeaveRoom}
-              className="px-2.5 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 bg-gradient-to-r from-emerald-600 to-cyan-600 rounded-lg text-white hover:opacity-90 transition-opacity text-xs sm:text-sm md:text-base whitespace-nowrap flex items-center gap-1"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4 sm:h-5 sm:w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                />
-              </svg>
-              <span className="hidden sm:inline">Leave Room</span>
-            </button>
           </div>
 
           {/* Messages Area - Scrollable */}
           <div
             ref={messagesContainerRef}
-            className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 sm:py-4 space-y-2 custom-scrollbar pb-[90px] sm:pb-[100px] md:pb-[110px] lg:pb-[120px]"
+            className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 sm:py-4 space-y-2 custom-scrollbar pb-[100px] sm:pb-[100px] md:pb-[110px] lg:pb-[120px]"
           >
             {messages.map((message, index) => (
               <div
@@ -234,13 +227,13 @@ function NetworkChat() {
                   <div
                     className={`text-xs sm:text-sm font-semibold mb-0.5 ${
                       message.senderId._id === user.id
-                        ? "text-right text-emerald-400"
+                        ? "text-right"
                         : "text-left"
                     }`}
                     style={{
                       color:
                         message.senderId._id === user.id
-                          ? "#10b981"
+                          ? colors.userColor
                           : message.senderId.color,
                     }}
                   >
@@ -253,11 +246,11 @@ function NetworkChat() {
                     style={{
                       backgroundColor:
                         message.senderId._id === user.id
-                          ? "#10b98120"
+                          ? `${colors.userColor}20`
                           : `${message.senderId.color}20`,
                       borderColor:
                         message.senderId._id === user.id
-                          ? "#10b98130"
+                          ? `${colors.userColor}30`
                           : `${message.senderId.color}30`,
                     }}
                   >
@@ -284,9 +277,8 @@ function NetworkChat() {
                   placeholder="Type your message..."
                   rows={1}
                   style={{ resize: "none" }}
-                  className="w-full bg-white/5 text-white rounded-xl px-3 py-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-emerald-600/50 border border-white/10 transition-all min-h-[40px] max-h-40 pr-14 text_scroll text_scroll"
+                  className={`w-full bg-white/5 text-white rounded-xl px-3 py-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-${colors.userColor}/50 border border-white/10 transition-all min-h-[40px] max-h-40 pr-14 text_scroll`}
                   onInput={(e) => {
-                    // Auto-resize textarea
                     e.target.style.height = "auto";
                     e.target.style.height = `${e.target.scrollHeight}px`;
                   }}
@@ -301,7 +293,7 @@ function NetworkChat() {
                   <span
                     className={`absolute bottom-2 right-4 text-xs font-mono pointer-events-none select-none ${
                       newMessage.length <= CHARACTER_LIMIT
-                        ? "text-[#22c55e]"
+                        ? "text-green-500"
                         : "text-red-400"
                     }`}
                     style={{
@@ -324,7 +316,7 @@ function NetworkChat() {
                   newMessage.length > CHARACTER_LIMIT ||
                   Date.now() - lastSent < THROTTLE_DELAY
                 }
-                className={`px-3 sm:px-6 py-2 bg-gradient-to-r from-emerald-600 to-cyan-600 rounded-xl text-white hover:opacity-90 transition-opacity font-medium text-sm sm:text-base whitespace-nowrap flex items-center gap-1.5 ${
+                className={`px-3 sm:px-6 py-2 bg-gradient-to-r ${colors.button} rounded-xl text-white hover:opacity-90 transition-opacity font-medium text-sm sm:text-base whitespace-nowrap flex items-center gap-1.5 ${
                   !newMessage.trim() ||
                   newMessage.length > CHARACTER_LIMIT ||
                   Date.now() - lastSent < THROTTLE_DELAY
@@ -351,40 +343,38 @@ function NetworkChat() {
               </button>
             </form>
           </div>
-
-          <style jsx global>{`
-            .text_scroll::-webkit-scrollbar {
-              width: 0px !important;
-              height: 0px !important;
-            }
-            .custom-scrollbar::-webkit-scrollbar {
-              width: 6px;
-            }
-            .custom-scrollbar::-webkit-scrollbar-track {
-              background: transparent;
-            }
-            .custom-scrollbar::-webkit-scrollbar-thumb {
-              background: linear-gradient(to bottom, #10b981, #0891b2);
-              border-radius: 3px;
-            }
-            .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-              background: linear-gradient(to bottom, #059669, #0e7490);
-            }
-            .font {
-              font-family: "Gloria Hallelujah", cursive;
-              font-weight: 400;
-              font-style: normal;
-            }
-
-            /* Use custom viewport height */
-            .h-screen {
-              height: calc(var(--vh, 1vh) * 100);
-            }
-          `}</style>
         </div>
+
+        <style jsx global>{`
+          .text_scroll::-webkit-scrollbar {
+            width: 0 !important;
+            height: 0 !important;
+          }
+          .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: linear-gradient(to bottom, ${colors.userColor}, ${roomType === "global" ? "#3b82f6" : "#0891b2"});
+            border-radius: 3px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(to bottom, ${roomType === "global" ? "#6d28d9" : "#059669"}, ${roomType === "global" ? "#2563eb" : "#0e7490"});
+          }
+          .font {
+            font-family: "Gloria Hallelujah", cursive;
+            font-weight: 400;
+            font-style: normal;
+          }
+          .h-screen {
+            height: calc(var(--vh, 1vh) * 100);
+          }
+        `}</style>
       </div>
     </>
   );
 }
 
-export default NetworkChat;
+export default Chat; 
