@@ -1,19 +1,33 @@
 import "./App.css";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   BrowserRouter as Router,
   Routes,
   Route,
   useNavigate,
   Navigate,
+  useLocation,
+  useParams,
 } from "react-router-dom";
 import Chat from "./components/Chat";
 import JoinRoom from "./components/JoinRoom";
+import axios from "axios";
+
+// Configure axios defaults
+axios.defaults.withCredentials = true;
 
 function Home({ onJoinRoom }) {
   const navigate = useNavigate();
-  const [showJoinRoom, setShowJoinRoom] = useState(false);
-  const [selectedRoomType, setSelectedRoomType] = useState(null);
+  const location = useLocation();
+  const [showJoinRoom, setShowJoinRoom] = useState(location.state?.showJoinRoom || false);
+  const [selectedRoomType, setSelectedRoomType] = useState(location.state?.roomType || null);
+
+  // Clear location state after reading it
+  useEffect(() => {
+    if (location.state) {
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const handleRoomSelect = (roomType) => {
     setSelectedRoomType(roomType);
@@ -23,7 +37,7 @@ function Home({ onJoinRoom }) {
   const handleJoinSuccess = (userData) => {
     onJoinRoom(userData, selectedRoomType);
     setShowJoinRoom(false);
-    navigate(`/chat/${selectedRoomType}`);
+    navigate(`/chat/${selectedRoomType}`, { state: { fromHome: true } });
   };
 
   return (
@@ -135,6 +149,42 @@ function Home({ onJoinRoom }) {
   );
 }
 
+function ChatRoute() {
+  const { roomType } = useParams();
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        // Try to get current user from session using the check endpoint
+        const response = await axios.get('/api/auth/check');
+        setUser({
+          id: response.data._id,
+          username: response.data.userName,
+          color: response.data.color,
+          isAnonymous: response.data.isAnonymous
+        });
+      } catch (error) {
+        // If no valid session, redirect to home
+        navigate('/', { replace: true });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, [navigate]);
+
+  if (isLoading) {
+    return null; // or a loading spinner
+  }
+
+  return user ? <Chat roomType={roomType} user={user} /> : null;
+}
+
 function App() {
   const [user, setUser] = useState(null);
   const [roomType, setRoomType] = useState(null);
@@ -150,13 +200,7 @@ function App() {
         <Route path="/" element={<Home onJoinRoom={handleJoinRoom} />} />
         <Route 
           path="/chat/:roomType" 
-          element={
-            user && roomType ? (
-              <Chat roomType={roomType} user={user} />
-            ) : (
-              <Navigate to="/" replace />
-            )
-          } 
+          element={<ChatRoute />} 
         />
       </Routes>
     </Router>
