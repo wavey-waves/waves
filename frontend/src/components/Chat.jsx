@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
 import { toast, ToastContainer } from "react-toastify";
+import { useNavigate } from "react-router-dom";
 import "react-toastify/dist/ReactToastify.css";
 
 // Configure axios defaults
@@ -10,6 +11,7 @@ axios.defaults.withCredentials = true;
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 function Chat({ roomType, user }) {
+  const navigate = useNavigate();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [roomInfo, setRoomInfo] = useState(null);
@@ -207,6 +209,27 @@ function Chat({ roomType, user }) {
                 </span>
               )}
             </div>
+            <button
+              onClick={() => navigate('/')}
+              className={`p-2 rounded-lg bg-gradient-to-r ${colors.button} hover:opacity-90 transition-opacity text-white flex items-center gap-1.5 border ${colors.border} backdrop-blur-sm`}
+              aria-label="Go back to home"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                />
+              </svg>
+              <span className="hidden sm:inline font-medium">Back</span>
+            </button>
           </div>
 
           {/* Messages Area - Scrollable */}

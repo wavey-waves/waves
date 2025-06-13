@@ -6,20 +6,117 @@ import axios from "axios";
 // Configure axios defaults
 axios.defaults.withCredentials = true;
 
-// Predefined set of colors that work well with the dark theme
-const USER_COLORS = [
-  '#3b82f6', // Blue
-  '#10b981', // Emerald
-  '#f59e0b', // Amber
-  '#ef4444', // Red
-  '#8b5cf6', // Purple
-  '#06b6d4', // Cyan
-  '#f97316', // Orange
-];
+// Predefined set of distinct, vibrant colors that work well with the dark theme
+const ROOM_THEMES = {
+  global: {
+    // UI theme colors
+    themeColors: {
+      from: "from-violet-400 via-purple-700 to-indigo-500",
+      button: "from-violet-600 to-blue-600",
+      bg: "from-violet-600/5 via-transparent to-purple-600/5",
+      accent: "from-violet-300 via-purple-400 to-indigo-300",
+      border: "border-violet-500/20",
+      hover: "hover:bg-violet-600/10",
+      active: "bg-violet-600"
+    },
+    // User colors
+    userColors: [
+      '#8b5cf6', // Rich Purple
+      '#a855f7', // Bright Violet
+      '#6366f1', // Indigo
+      '#3b82f6', // Bright Blue
+      '#0ea5e9', // Sky Blue
+      '#60a5fa', // Light Blue
+      '#d946ef', // Fuchsia
+      '#ec4899', // Hot Pink
+      '#f43f5e', // Rose
+      '#f97316', // Vibrant Orange
+      '#f59e0b', // Warm Amber
+      '#fbbf24', // Amber
+      '#eab308', // Bright Yellow
+      '#84cc16', // Lime Green
+      '#22c55e', // Green
+    ]
+  },
+  network: {
+    // UI theme colors
+    themeColors: {
+      from: "from-emerald-400 via-teal-500 to-cyan-500",
+      button: "from-emerald-600 to-cyan-600",
+      bg: "from-emerald-600/5 via-transparent to-cyan-600/5",
+      accent: "from-emerald-300 via-teal-400 to-cyan-300",
+      border: "border-emerald-500/20",
+      hover: "hover:bg-emerald-600/10",
+      active: "bg-emerald-600"
+    },
+    // User colors
+    userColors: [
+      '#10b981', // Vibrant Emerald
+      '#14b8a6', // Teal
+      '#06b6d4', // Bright Cyan
+      '#34d399', // Emerald
+      '#22c55e', // Green
+      '#84cc16', // Lime Green
+      '#0ea5e9', // Sky Blue
+      '#60a5fa', // Light Blue
+      '#3b82f6', // Bright Blue
+      '#6366f1', // Indigo
+      '#8b5cf6', // Rich Purple
+      '#a855f7', // Bright Violet
+      '#d946ef', // Fuchsia
+      '#ec4899', // Hot Pink
+      '#f43f5e', // Rose
+    ]
+  }
+};
+
+// Function to get theme-appropriate colors based on room type
+const getThemeAppropriateColors = (roomType) => {
+  if (roomType === "Global") {
+    // For Global room, prioritize purple/blue tones but include some variety
+    return [
+      '#8b5cf6', // Rich Purple
+      '#a855f7', // Bright Violet
+      '#6366f1', // Indigo
+      '#3b82f6', // Bright Blue
+      '#0ea5e9', // Sky Blue
+      '#60a5fa', // Light Blue
+      '#d946ef', // Fuchsia
+      '#ec4899', // Hot Pink
+      '#f43f5e', // Rose
+      '#f97316', // Vibrant Orange
+      '#f59e0b', // Warm Amber
+      '#fbbf24', // Amber
+      '#eab308', // Bright Yellow
+      '#84cc16', // Lime Green
+      '#22c55e', // Green
+    ];
+  } else if (roomType === "Network") {
+    // For Network room, prioritize green/cyan tones but include some variety
+    return [
+      '#10b981', // Vibrant Emerald
+      '#14b8a6', // Teal
+      '#06b6d4', // Bright Cyan
+      '#34d399', // Emerald
+      '#22c55e', // Green
+      '#84cc16', // Lime Green
+      '#0ea5e9', // Sky Blue
+      '#60a5fa', // Light Blue
+      '#3b82f6', // Bright Blue
+      '#6366f1', // Indigo
+      '#8b5cf6', // Rich Purple
+      '#a855f7', // Bright Violet
+      '#d946ef', // Fuchsia
+      '#ec4899', // Hot Pink
+      '#f43f5e', // Rose
+    ];
+  }
+  return ROOM_THEMES.global.userColors; // All colors for other cases
+};
 
 function JoinRoom({ onJoin, roomName = "Global", onClose }) {
   const navigate = useNavigate();
-  const [joinType, setJoinType] = useState("anonymous"); // "anonymous" or "custom"
+  const [joinType, setJoinType] = useState("anonymous");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -28,6 +125,9 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
   const [userColor, setUserColor] = useState(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  // Get theme colors based on room type
+  const themeColors = ROOM_THEMES[roomName.toLowerCase() === "global" ? "global" : "network"].themeColors;
 
   const generateRandomName = () => {
     return uniqueNamesGenerator({
@@ -38,8 +138,9 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
   };
 
   const generateRandomColor = () => {
-    const randomIndex = Math.floor(Math.random() * USER_COLORS.length);
-    return USER_COLORS[randomIndex];
+    const roomColors = ROOM_THEMES[roomName.toLowerCase() === "global" ? "global" : "network"].userColors;
+    const randomIndex = Math.floor(Math.random() * roomColors.length);
+    return roomColors[randomIndex];
   };
 
   // Initialize random name and color from localStorage or generate new ones
@@ -170,9 +271,9 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
       <div className="absolute inset-0 z-0 bg-black/50 backdrop-blur-sm" onClick={onClose}></div>
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-b from-slate-950 to-black"></div>
-        <div className="absolute inset-0 bg-gradient-to-tr from-blue-600/5 via-transparent to-purple-600/5"></div>
+        <div className={`absolute inset-0 bg-gradient-to-tr ${themeColors.bg}`}></div>
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/10 via-transparent to-purple-500/10 animate-gradient"></div>
+          <div className={`absolute inset-0 bg-gradient-to-tr ${themeColors.bg} animate-gradient`}></div>
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
           <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
         </div>
@@ -182,7 +283,7 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
         <div className="absolute top-4 right-4">
           <button
             onClick={onClose}
-            className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white/70 hover:text-white"
+            className="p-2 rounded-lg bg-red-500/10 backdrop-blur-sm border border-red-500/20 text-red-400/90 hover:bg-red-500/20 hover:border-red-500/30 hover:text-red-300 transition-all"
             aria-label="Close"
           >
             <svg 
@@ -202,7 +303,7 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
           </button>
         </div>
 
-        <h2 className="text-2xl font-bold text-center mb-6 bg-gradient-to-r from-violet-400 via-purple-700 to-indigo-500 bg-clip-text text-transparent">
+        <h2 className={`text-2xl font-bold text-center mb-6 bg-gradient-to-r ${themeColors.from} bg-clip-text text-transparent`}>
           Join {roomName} Room
         </h2>
 
@@ -216,20 +317,20 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
           <div className="flex gap-4 mb-6">
             <button
               onClick={() => setJoinType("anonymous")}
-              className={`flex-1 py-2 px-4 rounded-lg transition-colors ${
+              className={`flex-1 py-2 px-4 rounded-lg transition-all ${
                 joinType === "anonymous"
-                  ? "bg-violet-600 text-white"
-                  : "bg-white/5 text-white/70 hover:bg-white/10"
+                  ? `${themeColors.active} text-white`
+                  : "bg-white/10 backdrop-blur-sm border border-white/10 text-white/90 hover:bg-white/15 hover:border-white/20"
               }`}
             >
               Join as Anonymous
             </button>
             <button
               onClick={() => setJoinType("custom")}
-              className={`flex-1 py-2 px-4 rounded-lg transition-colors ${
+              className={`flex-1 py-2 px-4 rounded-lg transition-all ${
                 joinType === "custom"
-                  ? "bg-violet-600 text-white"
-                  : "bg-white/5 text-white/70 hover:bg-white/10"
+                  ? `${themeColors.active} text-white`
+                  : "bg-white/10 backdrop-blur-sm border border-white/10 text-white/90 hover:bg-white/15 hover:border-white/20"
               }`}
             >
               Custom Account
@@ -239,14 +340,14 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
           <form onSubmit={handleJoin} className="space-y-4">
             {joinType === "anonymous" ? (
               <div className="space-y-3">
-                <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                  <p className="text-white/70 text-sm mb-2">Your random name:</p>
-                  <p className="text-violet-400 font-medium">{randomName}</p>
+                <div className={`bg-white/10 backdrop-blur-sm rounded-xl p-4 border ${themeColors.border}`}>
+                  <p className="text-white/90 text-sm mb-2">Your random name:</p>
+                  <p className={`font-medium bg-gradient-to-r ${themeColors.accent} bg-clip-text text-transparent`}>{randomName}</p>
                 </div>
                 <button
                   type="button"
                   onClick={handleGenerateNewName}
-                  className="w-full py-2 px-4 bg-white/5 text-white/70 rounded-xl hover:bg-white/10 transition-colors"
+                  className={`w-full py-2 px-4 bg-white/10 backdrop-blur-sm border border-white/10 text-white/90 rounded-xl hover:bg-white/15 hover:border-white/20 transition-all`}
                 >
                   Generate New Name
                 </button>
@@ -262,7 +363,7 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
                       setUsername(alphanumericOnly);
                     }}
                     placeholder="Choose a username (alphanumeric only)"
-                    className="w-full bg-white/5 text-white rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-violet-600/50 border border-white/10"
+                    className={`w-full bg-white/10 backdrop-blur-sm text-white/90 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-${roomName === "Global" ? "violet" : "emerald"}-600/50 border border-white/10 focus:border-white/20 placeholder-white/50`}
                     pattern="[a-zA-Z0-9]+"
                     title="Username can only contain letters and numbers"
                     required
@@ -274,13 +375,13 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter password"
-                    className="w-full bg-white/5 text-white rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-violet-600/50 border border-white/10 pr-12"
+                    className={`w-full bg-white/10 backdrop-blur-sm text-white/90 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-${roomName === "Global" ? "violet" : "emerald"}-600/50 border border-white/10 focus:border-white/20 placeholder-white/50 pr-12`}
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 hover:text-white focus:outline-none"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white focus:outline-none"
                     tabIndex={-1}
                     aria-label={showPassword ? "Hide password" : "Show password"}
                   >
@@ -303,9 +404,9 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
                     id="createNew"
                     checked={isCreating}
                     onChange={(e) => setIsCreating(e.target.checked)}
-                    className="rounded border-white/10 bg-white/5"
+                    className={`rounded border-white/10 bg-white/10 backdrop-blur-sm focus:ring-${roomName === "Global" ? "violet" : "emerald"}-600`}
                   />
-                  <label htmlFor="createNew" className="text-white/70">
+                  <label htmlFor="createNew" className="text-white/90">
                     Create new account
                   </label>
                 </div>
@@ -315,7 +416,7 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
             <button
               type="submit"
               disabled={isLoading}
-              className={`w-full py-2 px-4 bg-gradient-to-r from-violet-600 to-blue-600 rounded-xl text-white hover:opacity-90 transition-opacity font-medium ${
+              className={`w-full py-2 px-4 bg-gradient-to-r ${themeColors.button} rounded-xl text-white hover:opacity-90 transition-opacity font-medium ${
                 isLoading ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
