@@ -237,53 +237,43 @@ function Chat({ roomType, user }) {
             ref={messagesContainerRef}
             className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 sm:py-4 space-y-2 custom-scrollbar pb-[100px] sm:pb-[100px] md:pb-[110px] lg:pb-[120px]"
           >
-            {messages.map((message, index) => (
-              <div
-                key={message._id || index}
-                className={`flex ${
-                  message.senderId._id === user.id
-                    ? "justify-end"
-                    : "justify-start"
-                }`}
-              >
-                <div className="max-w-[85%] sm:max-w-[70%] relative z-0">
-                  <div
-                    className={`text-xs sm:text-sm font-semibold mb-0.5 ${
-                      message.senderId._id === user.id
-                        ? "text-right"
-                        : "text-left"
-                    }`}
-                    style={{
-                      color:
-                        message.senderId._id === user.id
-                          ? colors.userColor
-                          : message.senderId.color,
-                    }}
-                  >
-                    {message.senderId._id === user.id
-                      ? user.username
-                      : message.senderId.userName}
-                  </div>
-                  <div
-                    className={`rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 backdrop-blur-sm border text-white mb-1`}
-                    style={{
-                      backgroundColor:
-                        message.senderId._id === user.id
-                          ? `${colors.userColor}20`
-                          : `${message.senderId.color}20`,
-                      borderColor:
-                        message.senderId._id === user.id
-                          ? `${colors.userColor}30`
-                          : `${message.senderId.color}30`,
-                    }}
-                  >
-                    <p className="text-white/90 text-sm sm:text-base break-words text-left">
-                      {message.text}
-                    </p>
+            {messages.map((message, index) => {
+              // Skip rendering if senderId is null
+              if (!message.senderId) return null;
+              
+              const isCurrentUser = message.senderId._id === user.id;
+              const senderName = isCurrentUser ? user.username : message.senderId.userName;
+              const senderColor = isCurrentUser ? colors.userColor : message.senderId.color;
+
+              return (
+                <div
+                  key={message._id || index}
+                  className={`flex ${isCurrentUser ? "justify-end" : "justify-start"}`}
+                >
+                  <div className="max-w-[85%] sm:max-w-[70%] relative z-0">
+                    <div
+                      className={`text-xs sm:text-sm font-semibold mb-0.5 ${
+                        isCurrentUser ? "text-right" : "text-left"
+                      }`}
+                      style={{ color: senderColor }}
+                    >
+                      {senderName}
+                    </div>
+                    <div
+                      className={`rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 backdrop-blur-sm border text-white mb-1`}
+                      style={{
+                        backgroundColor: `${senderColor}20`,
+                        borderColor: `${senderColor}30`,
+                      }}
+                    >
+                      <p className="text-white/90 text-sm sm:text-base break-words text-left">
+                        {message.text}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Input Area - Fixed */}
