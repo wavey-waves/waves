@@ -70,52 +70,7 @@ const ROOM_THEMES = {
   }
 };
 
-// Function to get theme-appropriate colors based on room type
-const getThemeAppropriateColors = (roomType) => {
-  if (roomType === "Global") {
-    // For Global room, prioritize purple/blue tones but include some variety
-    return [
-      '#8b5cf6', // Rich Purple
-      '#a855f7', // Bright Violet
-      '#6366f1', // Indigo
-      '#3b82f6', // Bright Blue
-      '#0ea5e9', // Sky Blue
-      '#60a5fa', // Light Blue
-      '#d946ef', // Fuchsia
-      '#ec4899', // Hot Pink
-      '#f43f5e', // Rose
-      '#f97316', // Vibrant Orange
-      '#f59e0b', // Warm Amber
-      '#fbbf24', // Amber
-      '#eab308', // Bright Yellow
-      '#84cc16', // Lime Green
-      '#22c55e', // Green
-    ];
-  } else if (roomType === "Network") {
-    // For Network room, prioritize green/cyan tones but include some variety
-    return [
-      '#10b981', // Vibrant Emerald
-      '#14b8a6', // Teal
-      '#06b6d4', // Bright Cyan
-      '#34d399', // Emerald
-      '#22c55e', // Green
-      '#84cc16', // Lime Green
-      '#0ea5e9', // Sky Blue
-      '#60a5fa', // Light Blue
-      '#3b82f6', // Bright Blue
-      '#6366f1', // Indigo
-      '#8b5cf6', // Rich Purple
-      '#a855f7', // Bright Violet
-      '#d946ef', // Fuchsia
-      '#ec4899', // Hot Pink
-      '#f43f5e', // Rose
-    ];
-  }
-  return ROOM_THEMES.global.userColors; // All colors for other cases
-};
-
 function JoinRoom({ onJoin, roomName = "Global", onClose }) {
-  const navigate = useNavigate();
   const [joinType, setJoinType] = useState("anonymous");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -360,7 +315,7 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
                     value={username}
                     onChange={(e) => {
                       const alphanumericOnly = e.target.value.replace(/[^a-zA-Z0-9]/g, '');
-                      setUsername(alphanumericOnly);
+                      setUsername(alphanumericOnly.toLowerCase());
                     }}
                     placeholder="Choose a username (alphanumeric only)"
                     className={`w-full bg-white/10 backdrop-blur-sm text-white/90 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-${roomName === "Global" ? "violet" : "emerald"}-600/50 border border-white/10 focus:border-white/20 placeholder-white/50`}
