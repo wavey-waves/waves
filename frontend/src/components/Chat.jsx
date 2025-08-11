@@ -10,18 +10,33 @@ axios.defaults.withCredentials = true;
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
+// Public STUN servers for NAT traversal
+const ICE_SERVERS = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+  ],
+};
+
 function Chat({ roomType, user }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [roomInfo, setRoomInfo] = useState(null);
   const messagesContainerRef = useRef(null);
-  const socketRef = useRef(null);
+  const socketRef = useRef(null); 
+  const textareaRef = useRef(null); 
+  const navigate = useNavigate();
+
+  // Refs for WebRTC connections, data channels, and message deduplication
+  const peerConnectionsRef = useRef(new Map());
+  const dataChannelsRef = useRef(new Map());
+  const processedMessageIds = useRef(new Set());
+
+  //Constants for message input
   const CHARACTER_LIMIT = 1000;
   const CHARACTER_WARNING = 900;
-  const textareaRef = useRef(null);
   const [lastSent, setLastSent] = useState(0);
   const THROTTLE_DELAY = 1000;
-  const navigate = useNavigate();
 
   // Add viewport height handling
   useEffect(() => {
@@ -48,9 +63,79 @@ function Chat({ roomType, user }) {
     scrollToBottom();
   }, [messages]);
 
+  // Helper to add a message to state, preventing duplicates
+  const addMessage = (message) => {
+    if (!message._id || processedMessageIds.current.has(message._id)) return;
+    processedMessageIds.current.add(message._id);
+    setMessages((prevMessages) => [...prevMessages, message]);
+  };
+
+  // Helper to clean up a P2P connection
+  const closePeerConnection = (socketId) => {
+    peerConnectionsRef.current.get(socketId)?.close();
+    peerConnectionsRef.current.delete(socketId);
+    dataChannelsRef.current.delete(socketId);
+    console.log(`Closed P2P connection to ${socketId}`);
+  };
+
   // Setup socket connection and fetch initial data
   useEffect(() => {
     let currentRoom = null;
+
+    const createPeerConnection = (peerSocketId, isInitiator) => {
+      if(peerConnectionsRef.current.has(peerSocketId)) return;
+
+      console.log(`Creating P2P connection to ${peerSocketId}, initiator: ${isInitiator}`);
+      const pc = new RTCPeerConnection(ICE_SERVERS);
+      peerConnectionsRef.current.set(peerSocketId, pc);
+
+      pc.onicecandidate = event => {
+        if (event.candidate && socketRef.current) {
+          socketRef.current.emit("webrtc-ice-candidate", {
+            to: peerSocketId,
+            candidate: event.candidate,
+          });
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        const state = pc.connectionState;
+        console.log(`P2P connection state with ${peerSocketId}: ${state}`);
+        if (state === "failed" || state === "disconnected" || state === "closed") {
+            closePeerConnection(peerSocketId);
+        }
+      };
+
+      if(isInitiator) {
+        const dataChannel = pc.createDataChannel("chat");
+        dataChannelsRef.current.set(peerSocketId, dataChannel);
+
+        dataChannel.onmessage = event => {
+          addMessage(JSON.parse(event.data));
+        };
+        dataChannel.onopen = () => {
+          console.log(`Data channel with ${peerSocketId} opened.`);
+        };
+
+        pc.createOffer()
+          .then(offer => pc.setLocalDescription(offer))
+          .then(() => {
+            if(socketRef.current) {
+              socketRef.current.emit("webrtc-offer", {to:peerSocketId, offer: pc.localDescription});
+            }
+          })
+          .catch(e => {
+            console.error("Error creating offer:", e);
+          });
+      } else {
+        pc.ondatachannel = (event) => {
+          const dataChannel = event.channel;
+          dataChannelsRef.current.set(peerSocketId, dataChannel);
+          dataChannel.onmessage = (e) => addMessage(JSON.parse(e.data));
+          dataChannel.onopen = () => console.log(`Data channel with ${peerSocketId} opened.`);
+        };
+      }
+    }
 
     const setupSocketAndFetchData = async () => {
       try {
@@ -63,6 +148,15 @@ function Chat({ roomType, user }) {
           currentRoom = "global-room";
         }
 
+        const endpoint = roomType === "global" ? "/api/messages/global-room" : `/api/messages/${currentRoom}`;
+        const response = await axios.get(endpoint);
+        if (Array.isArray(response.data)) {
+            response.data.forEach(msg => {
+                if(msg._id) processedMessageIds.current.add(msg._id)
+            });
+            setMessages(response.data.slice(-50));
+        }
+
         // Initialize socket if not already done
         if (!socketRef.current) {
           socketRef.current = io(BACKEND_URL, {
@@ -70,9 +164,7 @@ function Chat({ roomType, user }) {
           });
 
           // Setup message handler
-          socketRef.current.on("chatMessage", (message) => {
-            setMessages((prevMessages) => [...prevMessages, message]);
-          });
+          socketRef.current.on("chatMessage", addMessage);
 
           // Setup error handler
           socketRef.current.on("error", (error) => {
@@ -88,15 +180,46 @@ function Chat({ roomType, user }) {
               socketRef.current.emit("join", currentRoom);
             }
           });
+
+          socketRef.current.on("existing-room-users", ({users}) => {
+            console.log("Existing users in room: ", users);
+            users.forEach(peerSocketId => {
+              createPeerConnection(peerSocketId, true);
+            });
+          });
+
+          socketRef.current.on("webrtc-offer", ({from, offer}) => {
+            console.log(`Received WebRTC offer from ${from}`);
+            createPeerConnection(from, false);
+            const pc = peerConnectionsRef.current.get(from);
+            if(pc) {
+              pc.setRemoteDescription(new RTCSessionDescription(offer))
+                .then(() => pc.createAnswer())
+                .then(answer => pc.setLocalDescription(answer))
+                .then(() => socketRef.current.emit("webrtc-answer", {to: from, answer: pc.localDescription}))
+                .catch(e => console.error("Error handling offer:", e));
+            }
+          });
+
+          socketRef.current.on("webrtc-answer", ({ from, answer }) => {
+            console.log(`Received WebRTC answer from ${from}`);
+            peerConnectionsRef.current.get(from)?.setRemoteDescription(new RTCSessionDescription(answer))
+              .catch(e => console.error("Error setting remote description for answer:", e));
+          });
+
+          socketRef.current.on("webrtc-ice-candidate", ({from, candidate}) => {
+            peerConnectionsRef.current.get(from)?.addIceCandidate(new RTCIceCandidate(candidate))
+              .catch(e => console.error("Error adding received ICE candidate:", e));
+          });
+
+          socketRef.current.on("user-left", ({socketId}) => {
+            toast.warn("A user has left the room.");
+            closePeerConnection(socketId);
+          });
         }
 
         // Join the room
         socketRef.current.emit("join", currentRoom);
-
-        // Fetch existing messages
-        const endpoint = roomType === "global" ? "/api/messages/global-room" : `/api/messages/${currentRoom}`;
-        const response = await axios.get(endpoint);
-        setMessages(Array.isArray(response.data) ? response.data.slice(-50) : []);
       } catch (error) {
         console.error("Error setting up socket or fetching data:", error);
         toast.error("Failed to connect to chat server");
@@ -108,17 +231,30 @@ function Chat({ roomType, user }) {
     }
 
     // Cleanup function
+
+    const socket = socketRef.current;
+    const connections = peerConnectionsRef.current;
+    const channels = dataChannelsRef.current;
+    const processedMessages = processedMessageIds.current;
     return () => {
-      if (socketRef.current) {
+      if (socket) {
         if (currentRoom) {
-          socketRef.current.emit("leave", currentRoom);
+          socket.emit("leave", currentRoom);
         }
-        socketRef.current.off("chatMessage");
-        socketRef.current.off("error");
-        socketRef.current.off("reconnect");
-        socketRef.current.disconnect();
-        socketRef.current = null;
+        
+        // Use the 'connections' variable which is a stable snapshot.
+        console.log(`Cleaning up ${connections.size} peer connections.`);
+        connections.forEach((pc) => {
+          pc.close();
+        });
+        
+        socket.disconnect();
       }
+
+      // Clear all refs for a clean state on next run
+      connections.clear();
+      channels.clear();
+      processedMessages.clear();
     };
   }, [user, roomType]);
 
@@ -137,19 +273,44 @@ function Chat({ roomType, user }) {
       toast.error("You're sending messages too quickly.");
       return;
     }
-    try {
-      const endpoint = roomType === "global" ? "/api/messages/send/global-room" : `/api/messages/send/${roomInfo?.roomName || ""}`;
-      await axios.post(endpoint, {
-        text: newMessage.trim(),
-      });
-      setNewMessage("");
-      setLastSent(now);
-      if (textareaRef.current) {
-        textareaRef.current.style.height = "40px";
+
+    const messagePayload = {
+      _id: crypto.randomUUID(),
+      text: newMessage.trim(),
+      senderId: { _id: user.id, userName: user.username, color: getGradientColors().userColor },
+      roomName: roomInfo?.roomName || "global-room",
+      createdAt: new Date().toISOString()
+    };
+
+    addMessage(messagePayload);
+
+    // Attempt to send via P2P data channels
+    dataChannelsRef.current.forEach((channel, socketId) => {
+      if (channel.readyState === "open") {
+        try {
+            channel.send(JSON.stringify(messagePayload));
+            console.log(`Message sent to ${socketId} via P2P`);
+        } catch (error) {
+            console.error(`P2P send error to ${socketId}:`, error);
+        }
       }
+    });
+
+    // Always send to server for fallback and persistence
+    try {
+        const roomName = roomType === "global" ? "global-room" : roomInfo?.roomName;
+        if (!roomName) throw new Error("Room name not available");
+        const endpoint = `/api/messages/send/${roomName}`;
+        await axios.post(endpoint, { text: messagePayload.text, tempId: messagePayload._id });
     } catch (error) {
-      toast.error("Error sending message.");
-      console.error("Error sending message:", error);
+      toast.error("Failed to send message to server.");
+      console.error("Server send error:", error);
+    }
+
+    setNewMessage("");
+    setLastSent(now);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "40px";
     }
   };
 
