@@ -306,24 +306,39 @@ function Chat({ roomType, user }) {
 
     addMessage(messagePayload);
 
-    // Attempt to send via P2P data channels
-    dataChannelsRef.current.forEach((channel, socketId) => {
+    let wasSentByP2P = false;
+    let peerCount = 0;
+
+    dataChannelsRef.current.forEach((channel) => {
+      peerCount++;
       if (channel.readyState === "open") {
         try {
-            channel.send(JSON.stringify(messagePayload));
-            console.log(`Message sent to ${socketId} via P2P`);
+          channel.send(JSON.stringify(messagePayload));
+          console.log(`[CLIENT]Message sent to peer via P2P`);
+          wasSentByP2P = true;
         } catch (error) {
-            console.error(`P2P send error to ${socketId}:`, error);
+          console.error(`P2P send error:`, error);
         }
       }
     });
 
+    // If there are no peers, P2P send is irrelevant
+    if (peerCount === 0) {
+      wasSentByP2P = false;
+    }
+
     // Always send to server for fallback and persistence
     try {
-        const roomName = roomType === "global" ? "global-room" : roomInfo?.roomName;
-        if (!roomName) throw new Error("Room name not available");
-        const endpoint = `/api/messages/send/${roomName}`;
-        await axios.post(endpoint, { text: messagePayload.text, tempId: messagePayload._id });
+      const roomName = roomType === "global" ? "global-room" : roomInfo?.roomName;
+      if (!roomName) throw new Error("Room name not available");
+      const endpoint = `/api/messages/send/${roomName}`;
+
+      // 🔽 Add a 'p2pSent' flag to the server request
+      await axios.post(endpoint, {
+        text: messagePayload.text,
+        tempId: messagePayload._id,
+        p2pSent: wasSentByP2P
+      });
     } catch (error) {
       toast.error("Failed to send message to server.");
       console.error("Server send error:", error);

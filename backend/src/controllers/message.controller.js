@@ -20,7 +20,7 @@ export const getMessages = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
   try {
-    const {text, image, tempId} = req.body;
+    const {text, image, tempId, p2pSent} = req.body;
     const senderId = req.user._id;
     const roomName = req.params.roomName;
 
@@ -43,8 +43,13 @@ export const sendMessage = async (req, res) => {
 
     const payload = {...populated, tempId};    
 
-    // Emit to room
-    io.to(roomName).emit("chatMessage", payload);
+    //Only emit from server if message wasnt sent by p2p
+    if(!p2pSent) {
+      console.log(`[Server] Broadcasting message to ${roomName} as P2P fallback.`);
+      io.to(roomName).emit("chatMessage", payload);
+    } else {
+      console.log(`[Server] Message for ${roomName} persisted, broadcast skipped (sent via P2P).`);
+    }
 
     res.status(201).json(payload);
   } catch (error) {
