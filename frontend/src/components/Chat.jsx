@@ -132,7 +132,12 @@ function Chat({ roomType, user }) {
 
           dataChannel.onmessage = event => {
             console.log("%c[P2P] Message received via DataChannel", "color: #22c55e;");
-            addMessage(JSON.parse(event.data));
+            try {
+              const message = JSON.parse(event.data)
+              addMessage(message);             
+            } catch (error) {
+              console.error("Failed to parse P2P message:", error);
+            }
           };
           dataChannel.onopen = () => {
             console.log(`Data channel with ${peerSocketId} opened.`);
@@ -155,7 +160,12 @@ function Chat({ roomType, user }) {
 
             dataChannel.onmessage = (e) => {
               console.log("%c[P2P] Message received via DataChannel", "color: #22c55e;");
-              addMessage(JSON.parse(e.data));
+              try {
+                const message = JSON.parse(e.data)
+                addMessage(message);             
+              } catch (error) {
+                console.error("Failed to parse P2P message:", error);
+              }
             };
             dataChannel.onopen = () => console.log(`Data channel with ${peerSocketId} opened.`);
           };
