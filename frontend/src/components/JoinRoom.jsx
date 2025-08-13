@@ -97,6 +97,26 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
     return roomColors[randomIndex];
   }, [roomName]);
 
+  const handleGenerateNewName = useCallback(() => {
+    const newName = generateRandomName();
+    const newColor = generateRandomColor();
+    
+    // Set the expiry for 7 days from now
+    const expiryTime = new Date().getTime() + 7 * 24 * 60 * 60 * 1000;
+    
+    const item = {
+      name: newName,
+      color: newColor,
+      expiry: expiryTime,
+    };
+    
+    // Store the object as a JSON string
+    localStorage.setItem('anonymousUser', JSON.stringify(item));
+    
+    setRandomName(newName);
+    setUserColor(newColor);
+  }, [generateRandomColor]);
+
   // Initialize random name and color from localStorage or generate new ones
   useEffect(() => {
     const itemStr = localStorage.getItem('anonymousUser');
@@ -212,26 +232,6 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
       setIsLoading(false);
     }
   };
-
-  const handleGenerateNewName = useCallback(() => {
-    const newName = generateRandomName();
-    const newColor = generateRandomColor();
-    
-    // Set the expiry for 7 days from now
-    const expiryTime = new Date().getTime() + 7 * 24 * 60 * 60 * 1000;
-    
-    const item = {
-      name: newName,
-      color: newColor,
-      expiry: expiryTime,
-    };
-    
-    // Store the object as a JSON string
-    localStorage.setItem('anonymousUser', JSON.stringify(item));
-    
-    setRandomName(newName);
-    setUserColor(newColor);
-  }, [generateRandomColor]);
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50">
