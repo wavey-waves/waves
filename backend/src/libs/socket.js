@@ -16,10 +16,55 @@ const io = new SocketServer(server, {
 io.on("connection", socket => {
   console.log("A user connected ", socket.id);
 
+  //WebRTC signalling
+  socket.on("webrtc-offer", ({offer, to}) => {
+    const target = io.sockets.sockets.get(to);
+    if(!target || !offer) return; 
+
+    //ignore default room(socket id) and check if both share a room
+    const shareRoom = [...socket.rooms].some(r => r !== socket.id && target.rooms.has(r));
+    if(!shareRoom) return; //security check
+
+    socket.to(to).emit("webrtc-offer", {offer, from: socket.id});
+  });
+
+  socket.on("webrtc-answer", ({answer, to}) => {
+    const target = io.sockets.sockets.get(to);
+    if(!target || !answer) return; 
+
+    const shareRoom = [...socket.rooms].some(r => r !== socket.id && target.rooms.has(r));
+    if(!shareRoom) return;
+    socket.to(to).emit("webrtc-answer", {answer, from: socket.id});
+  });
+
+  socket.on("webrtc-ice-candidate", ({candidate, to}) => {
+    const target = io.sockets.sockets.get(to);
+    if(!target || !candidate) return; 
+
+    const shareRoom = [...socket.rooms].some(r => r !== socket.id && target.rooms.has(r));
+    if(!shareRoom) return;
+    socket.to(to).emit("webrtc-ice-candidate", {candidate, from: socket.id});
+  });
+
+
   // Handle joining rooms
   socket.on("join", (roomName) => {
     socket.join(roomName);
     console.log(`User ${socket.id} joined room: ${roomName}`);
+
+    // Get other users in the room
+    const clientsInRoom = io.sockets.adapter.rooms.get(roomName);
+    const otherUsers = [];
+    if (clientsInRoom) {
+      clientsInRoom.forEach(clientId => {
+        if (clientId !== socket.id) {
+          otherUsers.push(clientId);
+        }
+      });
+    }
+
+    // Send the list of existing users to the new user to initiate P2P
+    socket.emit("existing-room-users", { users: otherUsers });
     
     // Notify room members
     io.to(roomName).emit("userJoined", {

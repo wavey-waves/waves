@@ -20,7 +20,7 @@ export const getMessages = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
   try {
-    const {text, image} = req.body;
+    const {text, image, tempId} = req.body;
     const senderId = req.user._id;
     const roomName = req.params.roomName;
 
@@ -38,10 +38,14 @@ export const sendMessage = async (req, res) => {
 
     // Populate the sender information
     const populated = await Message.findById(newMessage._id)
-      .populate('senderId', 'userName color isAnonymous');
+      .populate('senderId', 'userName color isAnonymous')
+      .lean();
 
-    // Emit to room
-    io.to(roomName).emit("chatMessage", populated);
+    const payload = {...populated, tempId};    
+
+    // ✅ Always broadcast the message. The server is the source of truth.
+    console.log(`[Server] Broadcasting message ${payload._id} to room ${roomName}.`);
+    io.to(roomName).emit("chatMessage", payload);
 
     res.status(201).json(populated);
   } catch (error) {
