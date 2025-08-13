@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { uniqueNamesGenerator, adjectives, colors, animals } from "unique-names-generator";
 import axios from "axios";
 
@@ -91,29 +91,77 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
     });
   };
 
-  const generateRandomColor = () => {
+  const generateRandomColor = useCallback(() => {
     const roomColors = ROOM_THEMES[roomName.toLowerCase() === "global" ? "global" : "network"].userColors;
     const randomIndex = Math.floor(Math.random() * roomColors.length);
     return roomColors[randomIndex];
-  };
+  }, [roomName]);
+
+  const handleGenerateNewName = useCallback(() => {
+    const newName = generateRandomName();
+    const newColor = generateRandomColor();
+    
+    // Set the expiry for 7 days from now
+    const expiryTime = new Date().getTime() + 7 * 24 * 60 * 60 * 1000;
+    
+    const item = {
+      name: newName,
+      color: newColor,
+      expiry: expiryTime,
+    };
+    
+    // Store the object as a JSON string
+    localStorage.setItem('anonymousUser', JSON.stringify(item));
+    
+    setRandomName(newName);
+    setUserColor(newColor);
+  }, [generateRandomColor]);
 
   // Initialize random name and color from localStorage or generate new ones
   useEffect(() => {
-    const storedName = localStorage.getItem('anonymousUsername');
-    const storedColor = localStorage.getItem('userColor');
-    
-    if (storedName && storedColor) {
-      setRandomName(storedName);
-      setUserColor(storedColor);
-    } else {
-      const newName = generateRandomName();
-      const newColor = generateRandomColor();
-      setRandomName(newName);
-      setUserColor(newColor);
-      localStorage.setItem('anonymousUsername', newName);
-      localStorage.setItem('userColor', newColor);
+    const itemStr = localStorage.getItem('anonymousUser');
+    try {
+      if (itemStr) {
+        const item = JSON.parse(itemStr);
+        const hasValidShape =
+          item &&
+          typeof item.name === 'string' &&
+          typeof item.color === 'string' &&
+          typeof item.expiry === 'number';
+
+        
+        // If invalid or expired, regenerate
+        if (!hasValidShape || Date.now() > item.expiry) {
+          localStorage.removeItem('anonymousUser');
+          handleGenerateNewName();
+        } else {
+          setRandomName(item.name);
+          setUserColor(item.color);
+        }
+      } else {
+        // Migrate legacy keys if present
+        const legacyName = localStorage.getItem('anonymousUsername');
+        const legacyColor = localStorage.getItem('userColor');
+        if (legacyName && legacyColor) {
+          const expiryTime = Date.now() + 7 * 24 * 60 * 60 * 1000;
+          const migrated = { name: legacyName, color: legacyColor, expiry: expiryTime };
+          localStorage.setItem('anonymousUser', JSON.stringify(migrated));
+          localStorage.removeItem('anonymousUsername');
+          localStorage.removeItem('userColor');
+          setRandomName(legacyName);
+          setUserColor(legacyColor);
+        } else {
+          // If no user exists, generate a new one
+          handleGenerateNewName();
+        }
+      }
+    } catch {
+      // Bad JSON or other issues -> regenerate
+      localStorage.removeItem('anonymousUser');
+      handleGenerateNewName();
     }
-  }, []);
+    
+  }, [handleGenerateNewName]);
 
   const handleJoin = async (e) => {
     e.preventDefault();
@@ -208,15 +256,6 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleGenerateNewName = () => {
-    const newName = generateRandomName();
-    const newColor = generateRandomColor();
-    setRandomName(newName);
-    setUserColor(newColor);
-    localStorage.setItem('anonymousUsername', newName);
-    localStorage.setItem('userColor', newColor);
   };
 
   return (
