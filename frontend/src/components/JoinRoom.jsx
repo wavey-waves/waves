@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { uniqueNamesGenerator, adjectives, colors, animals } from "unique-names-generator";
 import axios from "axios";
 
@@ -91,29 +91,32 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
     });
   };
 
-  const generateRandomColor = () => {
+  const generateRandomColor = useCallback(() => {
     const roomColors = ROOM_THEMES[roomName.toLowerCase() === "global" ? "global" : "network"].userColors;
     const randomIndex = Math.floor(Math.random() * roomColors.length);
     return roomColors[randomIndex];
-  };
+  }, [roomName]);
 
   // Initialize random name and color from localStorage or generate new ones
   useEffect(() => {
-    const storedName = localStorage.getItem('anonymousUsername');
-    const storedColor = localStorage.getItem('userColor');
-    
-    if (storedName && storedColor) {
-      setRandomName(storedName);
-      setUserColor(storedColor);
+    const itemStr = localStorage.getItem('anonymousUser');
+    if (itemStr) {
+      const item = JSON.parse(itemStr);
+      // Check if the item has expired
+      if (new Date().getTime() > item.expiry) {
+        // If expired, remove it and generate a new user
+        localStorage.removeItem('anonymousUser');
+        handleGenerateNewName(); // This function will create and set a new user
+      } else {
+        // If not expired, use the stored data
+        setRandomName(item.name);
+        setUserColor(item.color);
+      }
     } else {
-      const newName = generateRandomName();
-      const newColor = generateRandomColor();
-      setRandomName(newName);
-      setUserColor(newColor);
-      localStorage.setItem('anonymousUsername', newName);
-      localStorage.setItem('userColor', newColor);
+      // If no user exists, generate a new one
+      handleGenerateNewName();
     }
-  }, []);
+  }, [handleGenerateNewName]);
 
   const handleJoin = async (e) => {
     e.preventDefault();
@@ -210,14 +213,25 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
     }
   };
 
-  const handleGenerateNewName = () => {
+  const handleGenerateNewName = useCallback(() => {
     const newName = generateRandomName();
     const newColor = generateRandomColor();
+    
+    // Set the expiry for 7 days from now
+    const expiryTime = new Date().getTime() + 7 * 24 * 60 * 60 * 1000;
+    
+    const item = {
+      name: newName,
+      color: newColor,
+      expiry: expiryTime,
+    };
+    
+    // Store the object as a JSON string
+    localStorage.setItem('anonymousUser', JSON.stringify(item));
+    
     setRandomName(newName);
     setUserColor(newColor);
-    localStorage.setItem('anonymousUsername', newName);
-    localStorage.setItem('userColor', newColor);
-  };
+  }, [generateRandomColor]);
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50">
