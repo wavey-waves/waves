@@ -20,7 +20,7 @@ export const getMessages = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
   try {
-    const {text, image, tempId, p2pSent} = req.body;
+    const {text, image, tempId} = req.body;
     const senderId = req.user._id;
     const roomName = req.params.roomName;
 
@@ -43,15 +43,11 @@ export const sendMessage = async (req, res) => {
 
     const payload = {...populated, tempId};    
 
-    //Only emit from server if message wasnt sent by p2p
-    if(!p2pSent) {
-      console.log(`[Server] Broadcasting message to ${roomName} as P2P fallback.`);
-      io.to(roomName).emit("chatMessage", payload);
-    } else {
-      console.log(`[Server] Message for ${roomName} persisted, broadcast skipped (sent via P2P).`);
-    }
+    // ✅ Always broadcast the message. The server is the source of truth.
+    console.log(`[Server] Broadcasting message ${payload._id} to room ${roomName}.`);
+    io.to(roomName).emit("chatMessage", payload);
 
-    res.status(201).json(payload);
+    res.status(201).json(populated);
   } catch (error) {
     console.log("Error in sendMessage controller: ", error.message);
     res.status(500).json({ error: "Internal server error" });

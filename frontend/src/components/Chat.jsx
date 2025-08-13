@@ -65,8 +65,26 @@ function Chat({ roomType, user }) {
 
   // Helper to add a message to state, preventing duplicates
   const addMessage = (message) => {
-    if (!message._id || processedMessageIds.current.has(message._id)) return;
+    // Ignore if the message is invalid
+    if (!message || !message._id) return;
+
+    // 1. Check if we've already processed this message by its permanent ID
+    // 2. OR check if we've processed it by its temporary ID (from P2P)
+    if (
+      processedMessageIds.current.has(message._id) ||
+      (message.tempId && processedMessageIds.current.has(message.tempId))
+    ) {
+      // If either ID is already known, we've seen this message. Ignore it.
+      console.log(`[Deduplication] Ignored message: ${message.text}`);
+      return;
+    }
+
+    // This is a new message. Add BOTH of its IDs to the set for future checks.
     processedMessageIds.current.add(message._id);
+    if (message.tempId) {
+      processedMessageIds.current.add(message.tempId);
+    }
+    
     setMessages((prevMessages) => [...prevMessages, message]);
   };
 
