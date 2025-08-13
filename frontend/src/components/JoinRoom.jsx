@@ -120,22 +120,47 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
   // Initialize random name and color from localStorage or generate new ones
   useEffect(() => {
     const itemStr = localStorage.getItem('anonymousUser');
-    if (itemStr) {
-      const item = JSON.parse(itemStr);
-      // Check if the item has expired
-      if (new Date().getTime() > item.expiry) {
-        // If expired, remove it and generate a new user
-        localStorage.removeItem('anonymousUser');
-        handleGenerateNewName(); // This function will create and set a new user
+    try {
+      if (itemStr) {
+        const item = JSON.parse(itemStr);
+        const hasValidShape =
+          item &&
+          typeof item.name === 'string' &&
+          typeof item.color === 'string' &&
+          typeof item.expiry === 'number';
+
+        
+        // If invalid or expired, regenerate
+        if (!hasValidShape || Date.now() > item.expiry) {
+          localStorage.removeItem('anonymousUser');
+          handleGenerateNewName();
+        } else {
+          setRandomName(item.name);
+          setUserColor(item.color);
+        }
       } else {
-        // If not expired, use the stored data
-        setRandomName(item.name);
-        setUserColor(item.color);
+        // Migrate legacy keys if present
+        const legacyName = localStorage.getItem('anonymousUsername');
+        const legacyColor = localStorage.getItem('userColor');
+        if (legacyName && legacyColor) {
+          const expiryTime = Date.now() + 7 * 24 * 60 * 60 * 1000;
+          const migrated = { name: legacyName, color: legacyColor, expiry: expiryTime };
+          localStorage.setItem('anonymousUser', JSON.stringify(migrated));
+          localStorage.removeItem('anonymousUsername');
+          localStorage.removeItem('userColor');
+          setRandomName(legacyName);
+          setUserColor(legacyColor);
+        } else {
+          // If no user exists, generate a new one
+          handleGenerateNewName();
+        }
       }
-    } else {
-      // If no user exists, generate a new one
+    } catch {
+      // Bad JSON or other issues -> regenerate
+      localStorage.removeItem('anonymousUser');
       handleGenerateNewName();
     }
+    
   }, [handleGenerateNewName]);
 
   const handleJoin = async (e) => {
