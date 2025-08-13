@@ -18,14 +18,31 @@ io.on("connection", socket => {
 
   //WebRTC signalling
   socket.on("webrtc-offer", ({offer, to}) => {
+    const target = io.sockets.sockets.get(to);
+    if(!target || !offer) return; 
+
+    //ignore default room(socket id) and check if both share a room
+    const shareRoom = [...socket.rooms].some(r => r !== socket.id && target.rooms.has(r));
+    if(!shareRoom) return; //security check
+
     socket.to(to).emit("webrtc-offer", {offer, from: socket.id});
   });
 
   socket.on("webrtc-answer", ({answer, to}) => {
+    const target = io.sockets.sockets.get(to);
+    if(!target || !offer) return; 
+
+    const shareRoom = [...socket.rooms].some(r => r !== socket.id && target.rooms.has(r));
+    if(!shareRoom) return;
     socket.to(to).emit("webrtc-answer", {answer, from: socket.id});
   });
 
   socket.on("webrtc-ice-candidate", ({candidate, to}) => {
+    const target = io.sockets.sockets.get(to);
+    if(!target || !offer) return; 
+
+    const shareRoom = [...socket.rooms].some(r => r !== socket.id && target.rooms.has(r));
+    if(!shareRoom) return;
     socket.to(to).emit("webrtc-ice-candidate", {candidate, from: socket.id});
   });
 
