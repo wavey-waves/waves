@@ -21,11 +21,11 @@ io.on("connection", socket => {
     socket.to(to).emit("webrtc-offer", {offer, from: socket.id});
   });
 
-  socket.on("webrtc-answer", (answer, to) => {
+  socket.on("webrtc-answer", ({answer, to}) => {
     socket.to(to).emit("webrtc-answer", {answer, from: socket.id});
   });
 
-  socket.on("webrtc-ice-candidate", (candidate, to) => {
+  socket.on("webrtc-ice-candidate", ({candidate, to}) => {
     socket.to(to).emit("webrtc-ice-candidate", {candidate, from: socket.id});
   });
 
