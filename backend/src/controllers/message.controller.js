@@ -20,7 +20,7 @@ export const getMessages = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
   try {
-    const {text, image} = req.body;
+    const {text, image, tempId} = req.body;
     const senderId = req.user._id;
     const roomName = req.params.roomName;
 
@@ -38,12 +38,15 @@ export const sendMessage = async (req, res) => {
 
     // Populate the sender information
     const populated = await Message.findById(newMessage._id)
-      .populate('senderId', 'userName color isAnonymous');
+      .populate('senderId', 'userName color isAnonymous')
+      .lean();
+
+    const payload = {...populated, tempId};    
 
     // Emit to room
-    io.to(roomName).emit("chatMessage", populated);
+    io.to(roomName).emit("chatMessage", payload);
 
-    res.status(201).json(populated);
+    res.status(201).json(payload);
   } catch (error) {
     console.log("Error in sendMessage controller: ", error.message);
     res.status(500).json({ error: "Internal server error" });

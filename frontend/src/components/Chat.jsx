@@ -111,6 +111,7 @@ function Chat({ roomType, user }) {
         dataChannelsRef.current.set(peerSocketId, dataChannel);
 
         dataChannel.onmessage = event => {
+          console.log("%c[P2P] Message received via DataChannel", "color: #22c55e;");
           addMessage(JSON.parse(event.data));
         };
         dataChannel.onopen = () => {
@@ -131,7 +132,11 @@ function Chat({ roomType, user }) {
         pc.ondatachannel = (event) => {
           const dataChannel = event.channel;
           dataChannelsRef.current.set(peerSocketId, dataChannel);
-          dataChannel.onmessage = (e) => addMessage(JSON.parse(e.data));
+
+          dataChannel.onmessage = (e) => {
+            console.log("%c[P2P] Message received via DataChannel", "color: #22c55e;");
+            addMessage(JSON.parse(e.data));
+          };
           dataChannel.onopen = () => console.log(`Data channel with ${peerSocketId} opened.`);
         };
       }
@@ -157,6 +162,20 @@ function Chat({ roomType, user }) {
             setMessages(response.data.slice(-50));
         }
 
+        const upsertMessage = (message) => {
+          // If this message confirms a temporary one, replace it
+          if (message.tempId && message.senderId._id === user.id) {
+            setMessages(prev => 
+              prev.map(m => m._id === message.tempId ? message : m)
+            );
+            // Add the *new* permanent ID to the processed set
+            processedMessageIds.current.add(message._id);
+          } else {
+            // Otherwise, add it normally (it's from another user)
+            addMessage(message);
+          }
+        };
+
         // Initialize socket if not already done
         if (!socketRef.current) {
           socketRef.current = io(BACKEND_URL, {
@@ -164,7 +183,10 @@ function Chat({ roomType, user }) {
           });
 
           // Setup message handler
-          socketRef.current.on("chatMessage", addMessage);
+          socketRef.current.on("chatMessage", message => {
+            console.log("%c[SERVER] Message received via WebSocket", "color: #f97316;");
+            upsertMessage(message);
+          });
 
           // Setup error handler
           socketRef.current.on("error", (error) => {
