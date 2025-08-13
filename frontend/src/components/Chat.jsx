@@ -84,7 +84,7 @@ function Chat({ roomType, user }) {
     if (message.tempId) {
       processedMessageIds.current.add(message.tempId);
     }
-    
+
     setMessages((prevMessages) => [...prevMessages, message]);
   };
 
@@ -104,60 +104,67 @@ function Chat({ roomType, user }) {
       if(peerConnectionsRef.current.has(peerSocketId)) return;
 
       console.log(`Creating P2P connection to ${peerSocketId}, initiator: ${isInitiator}`);
-      const pc = new RTCPeerConnection(ICE_SERVERS);
-      peerConnectionsRef.current.set(peerSocketId, pc);
 
-      pc.onicecandidate = event => {
-        if (event.candidate && socketRef.current) {
-          socketRef.current.emit("webrtc-ice-candidate", {
-            to: peerSocketId,
-            candidate: event.candidate,
-          });
-        }
-      };
+      try {       
+        const pc = new RTCPeerConnection(ICE_SERVERS);
+        peerConnectionsRef.current.set(peerSocketId, pc);
 
-      pc.onconnectionstatechange = () => {
-        const state = pc.connectionState;
-        console.log(`P2P connection state with ${peerSocketId}: ${state}`);
-        if (state === "failed" || state === "disconnected" || state === "closed") {
-            closePeerConnection(peerSocketId);
-        }
-      };
-
-      if(isInitiator) {
-        const dataChannel = pc.createDataChannel("chat");
-        dataChannelsRef.current.set(peerSocketId, dataChannel);
-
-        dataChannel.onmessage = event => {
-          console.log("%c[P2P] Message received via DataChannel", "color: #22c55e;");
-          addMessage(JSON.parse(event.data));
-        };
-        dataChannel.onopen = () => {
-          console.log(`Data channel with ${peerSocketId} opened.`);
+        pc.onicecandidate = event => {
+          if (event.candidate && socketRef.current) {
+            socketRef.current.emit("webrtc-ice-candidate", {
+              to: peerSocketId,
+              candidate: event.candidate,
+            });
+          }
         };
 
-        pc.createOffer()
-          .then(offer => pc.setLocalDescription(offer))
-          .then(() => {
-            if(socketRef.current) {
-              socketRef.current.emit("webrtc-offer", {to:peerSocketId, offer: pc.localDescription});
-            }
-          })
-          .catch(e => {
-            console.error("Error creating offer:", e);
-          });
-      } else {
-        pc.ondatachannel = (event) => {
-          const dataChannel = event.channel;
+        pc.onconnectionstatechange = () => {
+          const state = pc.connectionState;
+          console.log(`P2P connection state with ${peerSocketId}: ${state}`);
+          if (state === "failed" || state === "disconnected" || state === "closed") {
+              closePeerConnection(peerSocketId);
+          }
+        };
+
+        if(isInitiator) {
+          const dataChannel = pc.createDataChannel("chat");
           dataChannelsRef.current.set(peerSocketId, dataChannel);
 
-          dataChannel.onmessage = (e) => {
+          dataChannel.onmessage = event => {
             console.log("%c[P2P] Message received via DataChannel", "color: #22c55e;");
-            addMessage(JSON.parse(e.data));
+            addMessage(JSON.parse(event.data));
           };
-          dataChannel.onopen = () => console.log(`Data channel with ${peerSocketId} opened.`);
-        };
-      }
+          dataChannel.onopen = () => {
+            console.log(`Data channel with ${peerSocketId} opened.`);
+          };
+
+          pc.createOffer()
+            .then(offer => pc.setLocalDescription(offer))
+            .then(() => {
+              if(socketRef.current) {
+                socketRef.current.emit("webrtc-offer", {to:peerSocketId, offer: pc.localDescription});
+              }
+            })
+            .catch(e => {
+              console.error("Error creating offer:", e);
+            });
+        } else {
+          pc.ondatachannel = (event) => {
+            const dataChannel = event.channel;
+            dataChannelsRef.current.set(peerSocketId, dataChannel);
+
+            dataChannel.onmessage = (e) => {
+              console.log("%c[P2P] Message received via DataChannel", "color: #22c55e;");
+              addMessage(JSON.parse(e.data));
+            };
+            dataChannel.onopen = () => console.log(`Data channel with ${peerSocketId} opened.`);
+          };
+        }
+      } catch (error) {
+        console.error(`Failed to create RTCPeerConnection for ${peerSocketId}:`, error);
+        toast.error("WebRTC is not supported or failed to initialize");
+        return;
+      }      
     }
 
     const setupSocketAndFetchData = async () => {
