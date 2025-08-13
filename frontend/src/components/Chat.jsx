@@ -202,7 +202,7 @@ function Chat({ roomType, user }) {
           if (message.tempId && message.senderId._id === user.id) {
             // Add the *new* permanent ID to the processed set
             processedMessageIds.current.add(message._id);
-            
+
             setMessages(prev => 
               prev.map(m => m._id === message.tempId ? message : m)
             );
@@ -255,8 +255,22 @@ function Chat({ roomType, user }) {
                 .then(() => pc.createAnswer())
                 .then(answer => pc.setLocalDescription(answer))
                 .then(() => socketRef.current.emit("webrtc-answer", {to: from, answer: pc.localDescription}))
-                .catch(e => console.error("Error handling offer:", e));
+                .catch(e => {
+                  console.error("Error handling offer:", e);
+                  closePeerConnection(from);
+                });
             }
+
+            // Add timeout for the connection
+            setTimeout(() => {
+              const currentPC = peerConnectionsRef.current.get(from);
+              // If after 10 seconds the connection is still not 'connected'...
+              if (currentPC && currentPC.connectionState !== 'connected') {
+                  console.warn(`[Timeout] P2P connection to ${from} did not connect in time.`);
+                  // ...assume it has failed and clean it up.
+                  closePeerConnection(from);
+              }
+          }, 10000); // 10-second timeout
           });
 
           socketRef.current.on("webrtc-answer", ({ from, answer }) => {
