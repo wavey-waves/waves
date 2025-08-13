@@ -200,11 +200,12 @@ function Chat({ roomType, user }) {
         const upsertMessage = (message) => {
           // If this message confirms a temporary one, replace it
           if (message.tempId && message.senderId._id === user.id) {
+            // Add the *new* permanent ID to the processed set
+            processedMessageIds.current.add(message._id);
+            
             setMessages(prev => 
               prev.map(m => m._id === message.tempId ? message : m)
             );
-            // Add the *new* permanent ID to the processed set
-            processedMessageIds.current.add(message._id);
           } else {
             // Otherwise, add it normally (it's from another user)
             addMessage(message);
