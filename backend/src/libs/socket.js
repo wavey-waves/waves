@@ -30,7 +30,7 @@ io.on("connection", socket => {
 
   socket.on("webrtc-answer", ({answer, to}) => {
     const target = io.sockets.sockets.get(to);
-    if(!target || !offer) return; 
+    if(!target || !answer) return; 
 
     const shareRoom = [...socket.rooms].some(r => r !== socket.id && target.rooms.has(r));
     if(!shareRoom) return;
@@ -39,7 +39,7 @@ io.on("connection", socket => {
 
   socket.on("webrtc-ice-candidate", ({candidate, to}) => {
     const target = io.sockets.sockets.get(to);
-    if(!target || !offer) return; 
+    if(!target || !candidate) return; 
 
     const shareRoom = [...socket.rooms].some(r => r !== socket.id && target.rooms.has(r));
     if(!shareRoom) return;
