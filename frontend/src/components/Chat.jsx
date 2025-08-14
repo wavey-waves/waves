@@ -133,6 +133,7 @@ function Chat({ roomType, user }) {
   const processedMessageIds = useRef(new Set());
   const groupKeyRef = useRef(null);
   const currentRoomRef = useRef(null);
+  const keyPromisesRef = useRef(new Map());
 
   //Constants for message input
   const CHARACTER_LIMIT = 1000;
@@ -176,14 +177,33 @@ function Chat({ roomType, user }) {
   };
 
   const ensureKeyForRoom = async (room, generateIfMissing = false) => {
-    if (groupKeyRef.current) return groupKeyRef.current;
-    let key = await loadKeyForRoom(room);
-    if (!key && generateIfMissing) {
-      key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
-      await saveKeyForRoom(room, key);
+    if (!room) throw new Error("Room is required to ensure group key");
+    if (groupKeyRef.current && currentRoomRef.current === room) return groupKeyRef.current;
+
+    const existingPromise = keyPromisesRef.current.get(room);
+    if (existingPromise) {
+      return existingPromise;
     }
-    if (key) groupKeyRef.current = key;
-    return key;
+
+    const promise = (async () => {
+      let key = await loadKeyForRoom(room);
+      if (!key && generateIfMissing) {
+        key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+        await saveKeyForRoom(room, key);
+      }
+      if (key) {
+        groupKeyRef.current = key;
+        currentRoomRef.current = room;
+      }
+      return key;
+    })();
+
+    keyPromisesRef.current.set(room, promise);
+    try {
+      return await promise;
+    } finally {
+      keyPromisesRef.current.delete(room);
+    }
   };
 
   const scrollToBottom = () => {
@@ -400,8 +420,13 @@ function Chat({ roomType, user }) {
           currentRoom = "global-room";
         }
         currentRoomRef.current = currentRoom;
-        // Try to load an existing key for this room (non-blocking for joining)
-        loadKeyForRoom(currentRoom).then(key => { if (key) groupKeyRef.current = key; }).catch(() => {});
+        // Try to load an existing key for this room before proceeding
+        try {
+          const loadedKey = await loadKeyForRoom(currentRoom);
+          if (loadedKey) groupKeyRef.current = loadedKey;
+        } catch (e) {
+          console.warn("Failed to load group key:", e);
+        }
 
         const endpoint = roomType === "global" ? "/api/messages/global-room" : `/api/messages/${currentRoom}`;
         const response = await axios.get(endpoint);
