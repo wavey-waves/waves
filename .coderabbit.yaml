@@ -26,13 +26,9 @@ reviews:
   suggested_reviewers: true
   auto_assign_reviewers: false
   poem: false
-  labeling_instructions:
-    - label: ""
-      instructions: ""
+  labeling_instructions: []
   path_filters: []
-  path_instructions:
-    - path: ""
-      instructions: ""
+  path_instructions: []
   abort_on_close: true
   disable_cache: false
   auto_review:
