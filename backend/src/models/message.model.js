@@ -17,9 +17,11 @@ const messageSchema = new mongoose.Schema(
     },
     ciphertext: {
       type: String,
+      trim: true,
     },
     iv: {
       type: String,
+      trim: true,
     },
     image: {
       type: String,
@@ -32,6 +34,20 @@ const messageSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Ensure ciphertext and iv are provided together (both present or both absent)
+messageSchema.pre('validate', function(next) {
+  const hasCiphertext = typeof this.ciphertext === 'string' && this.ciphertext.trim().length > 0;
+  const hasIv = typeof this.iv === 'string' && this.iv.trim().length > 0;
+  if (hasCiphertext !== hasIv) {
+    if (hasCiphertext) {
+      this.invalidate('iv', 'IV is required when ciphertext is provided');
+    } else {
+      this.invalidate('ciphertext', 'Ciphertext is required when IV is provided');
+    }
+  }
+  next();
+});
 
 const Message = mongoose.model("Message", messageSchema);
 
