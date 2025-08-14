@@ -660,15 +660,31 @@ function Chat({ roomType, user }) {
             }
           });
 
-          socketRef.current.on("group-key-request", async ({ roomName }) => {
+          socketRef.current.on("group-key-request", async ({ roomName, from }) => {
             console.log(`Received group key request for room ${roomName} from server.`);
             if (currentRoom === roomName) {
               try {
                 const key = groupKeyRef.current || await loadKeyForRoom(currentRoom);
                 if (key) {
-                  const exported = await exportKeyBase64(key);
-                  socketRef.current.emit("share-group-key", { roomName, key: exported });
-                  console.log(`Shared group key for room ${currentRoom} to server.`);
+                  // Prefer P2P to the requester when possible
+                  if (from) {
+                    const ch = dataChannelsRef.current.get(from);
+                    if (ch && ch.readyState === "open") {
+                      const exported = await exportKeyBase64(key);
+                      ch.send(JSON.stringify({ type: "key", key: exported }));
+                      console.log(`[Key] Shared group key to requester via P2P (${from}) for room ${currentRoom}.`);
+                      return;
+                    }
+                  }
+                  // Fallback: only share via server if no open P2P channels
+                  const openChannels = Array.from(dataChannelsRef.current.values()).filter(c => c?.readyState === "open").length;
+                  if (openChannels === 0 && socketRef.current?.connected) {
+                    const exported = await exportKeyBase64(key);
+                    socketRef.current.emit("share-group-key", { roomName, key: exported });
+                    console.log(`[Key] Shared group key via server (fallback) for room ${currentRoom}.`);
+                  } else {
+                    console.log(`[Key] Skipping server share; open P2P channels detected (${openChannels}).`);
+                  }
                 } else {
                   console.warn(`No key available for room ${currentRoom} to share with server.`);
                 }
@@ -684,8 +700,9 @@ function Chat({ roomType, user }) {
 
         // Add a fallback: if we have a key but no P2P connections after a delay,
         // try to share it via the server (this helps with deployment scenarios)
-        setTimeout(async () => {
-          if (groupKeyRef.current && dataChannelsRef.current.size === 0) {
+        const fallbackTimerId = setTimeout(async () => {
+          const openChannels = Array.from(dataChannelsRef.current.values()).filter(c => c?.readyState === "open").length;
+          if (groupKeyRef.current && openChannels === 0) {
             console.log(`[Key] No P2P connections established, sharing key via server for room: ${currentRoom}`);
             try {
               const exported = await exportKeyBase64(groupKeyRef.current);
@@ -715,6 +732,11 @@ function Chat({ roomType, user }) {
     const channels = dataChannelsRef.current;
     const processedMessages = processedMessageIds.current;
     return () => {
+      // Clear the fallback timer to prevent stray emissions
+      if (typeof fallbackTimerId !== "undefined") {
+        clearTimeout(fallbackTimerId);
+      }
+      
       if (socket) {
         if (currentRoom) {
           socket.emit("leave", currentRoom);
