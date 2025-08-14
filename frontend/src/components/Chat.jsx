@@ -362,13 +362,18 @@ function Chat({ roomType, user }) {
                   if (currentRoom) await saveKeyForRoom(currentRoom, imported);
                   console.log("Imported group key from peer (initiator channel)");
                   
-                  // Also share via server for other peers
-                  try {
-                    const exported = await exportKeyBase64(imported);
-                    socketRef.current.emit("share-group-key", { roomName: currentRoom, key: exported });
-                    console.log(`[Key] Shared imported key via server for room: ${currentRoom}`);
-                  } catch (e) {
-                    console.error("Failed to share imported key via server:", e);
+                  // Only share via server if P2P connections aren't available
+                  const hasP2PConnections = dataChannelsRef.current.size > 0;
+                  if (!hasP2PConnections && socketRef.current) {
+                    try {
+                      const exported = await exportKeyBase64(imported);
+                      socketRef.current.emit("share-group-key", { roomName: currentRoom, key: exported });
+                      console.log(`[Key] Shared imported key via server for room ${currentRoom} (P2P unavailable)`);
+                    } catch (e) {
+                      console.error("Failed to share imported key via server:", e);
+                    }
+                  } else if (hasP2PConnections) {
+                    console.log(`[Key] Skipping server share - P2P connections available (${dataChannelsRef.current.size} channels)`);
                   }
                 }
               } else {
@@ -423,13 +428,18 @@ function Chat({ roomType, user }) {
                     if (currentRoom) await saveKeyForRoom(currentRoom, imported);
                     console.log("Imported group key from peer (non-initiator)");
                     
-                    // Also share via server for other peers
-                    try {
-                      const exported = await exportKeyBase64(imported);
-                      socketRef.current.emit("share-group-key", { roomName: currentRoom, key: exported });
-                      console.log(`[Key] Shared imported key via server for room: ${currentRoom}`);
-                    } catch (e) {
-                      console.error("Failed to share imported key via server:", e);
+                    // Only share via server if P2P connections aren't available
+                    const hasP2PConnections = dataChannelsRef.current.size > 0;
+                    if (!hasP2PConnections && socketRef.current) {
+                      try {
+                        const exported = await exportKeyBase64(imported);
+                        socketRef.current.emit("share-group-key", { roomName: currentRoom, key: exported });
+                        console.log(`[Key] Shared imported key via server for room ${currentRoom} (P2P unavailable)`);
+                      } catch (e) {
+                        console.error("Failed to share imported key via server:", e);
+                      }
+                    } else if (hasP2PConnections) {
+                      console.log(`[Key] Skipping server share - P2P connections available (${dataChannelsRef.current.size} channels)`);
                     }
                   }
                 } else {
