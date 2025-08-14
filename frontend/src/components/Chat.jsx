@@ -252,19 +252,31 @@ function Chat({ roomType, user }) {
       }
       // Decrypt if needed
       if (message && message.ciphertext && message.iv) {
-        const key = groupKeyRef.current || (currentRoomRef.current && await loadKeyForRoom(currentRoomRef.current));
-        if (!key) {
-          console.warn("No group key available to decrypt incoming message");
+        try {
+          const roomCtx = currentRoomRef.current;
+          const key = groupKeyRef.current || (roomCtx && await loadKeyForRoom(roomCtx));
+          if (!key) {
+            console.warn(`[Decrypt] No group key for room=${roomCtx || "<unknown>"} while processing message id=${message._id || "<no-id>"} from sender=${message?.senderId?._id || "<unknown>"}`);
+            // Fallback: add original message for visibility
+            addMessage({ ...message, failedToDecrypt: true });
+            return;
+          }
+          const text = await decryptToString(key, message.ciphertext, message.iv);
+          addMessage({ ...message, text });
+          return;
+        } catch (err) {
+          console.error(`[Decrypt] Failed for message id=${message._id || "<no-id>"} in room=${currentRoomRef.current || "<unknown>"}`, err);
+          // Fallback: add original message marked as failed to decrypt
+          addMessage({ ...message, failedToDecrypt: true });
           return;
         }
-        const text = await decryptToString(key, message.ciphertext, message.iv);
-        addMessage({ ...message, text });
-        return;
       }
       // Fallback: plaintext
       addMessage(message);
     } catch (e) {
       console.error("Failed to process inbound message:", e);
+      // Add as-is to avoid losing messages entirely
+      if (incoming) addMessage(incoming);
     }
   };
 
@@ -281,16 +293,30 @@ function Chat({ roomType, user }) {
     let currentRoom = null;
 
     const sendGroupKeyToPeer = async (peerSocketId) => {
-      try {
-        const channel = dataChannelsRef.current.get(peerSocketId);
-        if (!channel || channel.readyState !== "open") return;
-        const key = groupKeyRef.current || (currentRoom && await loadKeyForRoom(currentRoom));
-        if (!key) return;
-        const exported = await exportKeyBase64(key);
-        channel.send(JSON.stringify({ type: "key", key: exported }));
-        console.log(`Sent group key to ${peerSocketId}`);
-      } catch (e) {
-        console.warn("Failed to send group key:", e);
+      const maxAttempts = 3;
+      let attempt = 0;
+      let delayMs = 200;
+      while (attempt < maxAttempts) {
+        attempt++;
+        try {
+          const channel = dataChannelsRef.current.get(peerSocketId);
+          if (!channel) throw new Error("DataChannel not found");
+          if (channel.readyState !== "open") throw new Error(`DataChannel not open (state=${channel.readyState})`);
+          const key = groupKeyRef.current || (currentRoom && await loadKeyForRoom(currentRoom));
+          if (!key) throw new Error("No group key available to export");
+          const exported = await exportKeyBase64(key);
+          channel.send(JSON.stringify({ type: "key", key: exported }));
+          console.log(`Sent group key to ${peerSocketId} (attempt ${attempt})`);
+          return;
+        } catch (e) {
+          console.warn(`Failed to send group key to ${peerSocketId} (attempt ${attempt}):`, e);
+          if (attempt >= maxAttempts) {
+            toast.error("Failed to share encryption key with a peer. Try rejoining the room.");
+            break;
+          }
+          await new Promise(res => setTimeout(res, delayMs));
+          delayMs *= 2; // exponential backoff
+        }
       }
     };
 
@@ -605,11 +631,12 @@ function Chat({ roomType, user }) {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     const now = Date.now();
-    if (!newMessage.trim()) {
+    const trimmed = newMessage.trim();
+    if (!trimmed) {
       toast.error("Message cannot be empty.");
       return;
     }
-    if (newMessage.length > CHARACTER_LIMIT) {
+    if (trimmed.length > CHARACTER_LIMIT) {
       toast.error("Message exceeds character limit.");
       return;
     }
@@ -618,85 +645,96 @@ function Chat({ roomType, user }) {
       return;
     }
 
-    const messagePayload = {
+    const roomName = roomType === "global" ? "global-room" : roomInfo?.roomName;
+    if (!roomName) {
+      const detail = roomType === "network" ? "No room assigned yet." : "";
+      toast.error(`Unable to determine room. ${detail}`.trim());
+      console.error("handleSendMessage: Missing roomName", { roomType, roomInfo });
+      return;
+    }
+
+    const basePayload = {
       _id: crypto.randomUUID(),
-      text: newMessage.trim(),
+      text: trimmed,
       senderId: { _id: user.id, userName: user.username, color: getGradientColors().userColor },
-      roomName: roomInfo?.roomName || "global-room",
-      createdAt: new Date().toISOString()
+      roomName,
+      createdAt: new Date().toISOString(),
+      pending: true
     };
 
-    // Ensure group key exists
+    // Encrypt once (used for both P2P and server)
+    let ciphertext, iv;
     try {
-      const roomName = roomType === "global" ? "global-room" : roomInfo?.roomName;
-      if (!roomName) throw new Error("Room name not available");
       const key = await ensureKeyForRoom(roomName, true);
       if (!key) throw new Error("Failed to get or create group key");
-      const { ciphertext, iv } = await encryptString(key, messagePayload.text);
+      const result = await encryptString(key, basePayload.text);
+      ciphertext = result.ciphertext;
+      iv = result.iv;
+    } catch (err) {
+      console.error("Encryption error in handleSendMessage:", err);
+      toast.error(`Encryption failed: ${err?.message || err}`);
+      return;
+    }
 
-      // Show locally as plaintext
-      addMessage(messagePayload);
-
-      let wasSentByP2P = false;
-      let peerCount = 0;
-
-      dataChannelsRef.current.forEach((channel, peerSocketId) => {
-        peerCount++;
-        if (channel.readyState === "open") {
+    // Attempt P2P send to open channels
+    let openChannels = 0;
+    let p2pSuccess = 0;
+    try {
+      dataChannelsRef.current.forEach((channel) => {
+        if (channel && channel.readyState === "open") {
+          openChannels++;
           try {
             const p2pMsg = {
               type: "msg",
               message: {
-                _id: messagePayload._id,
-                tempId: messagePayload._id,
+                _id: basePayload._id,
+                tempId: basePayload._id,
                 ciphertext,
                 iv,
-                senderId: messagePayload.senderId,
-                createdAt: messagePayload.createdAt,
+                senderId: basePayload.senderId,
+                createdAt: basePayload.createdAt,
                 room: roomName
               }
             };
             channel.send(JSON.stringify(p2pMsg));
-            console.log(`[CLIENT] Message sent to peer via P2P`);
-            wasSentByP2P = true;
-          } catch (error) {
-            console.error(`P2P send error:`, error);
+            p2pSuccess++;
+          } catch (sendErr) {
+            console.error("P2P send error:", sendErr);
           }
         }
       });
-
-      // If there are no peers, P2P send is irrelevant
-      if (peerCount === 0) {
-        wasSentByP2P = false;
-      }
-
-      // Always send to server for fallback and persistence
-      try {
-        const room = roomType === "global" ? "global-room" : roomInfo?.roomName;
-        if (!room) throw new Error("Room name not available");
-        const endpoint = `/api/messages/send/${room}`;
-
-        await axios.post(endpoint, {
-          // send encrypted content to server
-          ciphertext,
-          iv,
-          tempId: messagePayload._id,
-          p2pSent: wasSentByP2P
-        });
-      } catch (error) {
-        toast.error("Failed to send message to server.");
-        console.error("Server send error:", error);
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error("Encryption not supported or key error");
-      return;
+    } catch (e2) {
+      console.error("P2P iteration error:", e2);
     }
 
-    setNewMessage("");
-    setLastSent(now);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "40px";
+    // Attempt server send
+    let serverSuccess = false;
+    try {
+      const endpoint = `/api/messages/send/${roomName}`;
+      await axios.post(endpoint, {
+        ciphertext,
+        iv,
+        tempId: basePayload._id,
+        p2pSent: p2pSuccess > 0
+      });
+      serverSuccess = true;
+    } catch (error) {
+      const detail = error?.response?.data?.error || error?.message || String(error);
+      console.error("Server send error:", error);
+      toast.error(`Server send failed: ${detail}`);
+    }
+
+    // Show locally only if at least one path succeeded; else keep input intact
+    if (p2pSuccess > 0 || serverSuccess) {
+      addMessage(basePayload);
+      setNewMessage("");
+      setLastSent(now);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "40px";
+      }
+    } else {
+      // Neither path succeeded
+      toast.error("Message could not be sent. Please try again.");
     }
   };
 
