@@ -19,32 +19,103 @@ const ICE_SERVERS = {
 };
 
 // ===== Encryption helpers (AES-GCM 256) =====
-const b64ToBytes = (b64) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-const bytesToB64 = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes)));
+const b64ToBytes = (b64) => {
+  if (typeof b64 !== "string") {
+    throw new Error("Base64 input must be a string");
+  }
+  const trimmed = b64.trim();
+  if (trimmed.length === 0) {
+    throw new Error("Base64 input is empty");
+  }
+  // Remove whitespace and normalize padding
+  const normalized = trimmed.replace(/\s+/g, "");
+  const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+  if (!base64Regex.test(normalized)) {
+    throw new Error("Base64 input contains invalid characters or padding");
+  }
+  let padded = normalized;
+  const mod4 = padded.length % 4;
+  if (mod4 === 1) {
+    throw new Error("Invalid Base64 length");
+  }
+  if (mod4 > 0) {
+    padded += "=".repeat(4 - mod4);
+  }
+  try {
+    const binary = atob(padded);
+    const out = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      out[i] = binary.charCodeAt(i);
+    }
+    return out;
+  } catch (e) {
+    throw new Error(`Failed to decode Base64: ${e && e.message ? e.message : e}`);
+  }
+};
+
+const bytesToB64 = (bytes) => {
+  let view;
+  if (bytes instanceof ArrayBuffer) {
+    view = new Uint8Array(bytes);
+  } else if (ArrayBuffer.isView(bytes) && bytes.buffer instanceof ArrayBuffer) {
+    view = new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  } else if (Array.isArray(bytes)) {
+    view = new Uint8Array(bytes);
+  } else {
+    throw new Error("bytesToB64 expects Uint8Array, ArrayBuffer, or TypedArray");
+  }
+  try {
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let i = 0; i < view.length; i += chunkSize) {
+      const chunk = view.subarray(i, i + chunkSize);
+      binary += String.fromCharCode(...chunk);
+    }
+    return btoa(binary);
+  } catch (e) {
+    throw new Error(`Failed to encode Base64: ${e && e.message ? e.message : e}`);
+  }
+};
 
 async function exportKeyBase64(key) {
-  const raw = await crypto.subtle.exportKey("raw", key);
-  return bytesToB64(raw);
+  try {
+    const raw = await crypto.subtle.exportKey("raw", key);
+    return bytesToB64(raw);
+  } catch (e) {
+    throw new Error(`Failed to export key: ${e && e.message ? e.message : e}`);
+  }
 }
 
 async function importKeyBase64(b64) {
-  const raw = b64ToBytes(b64);
-  return crypto.subtle.importKey("raw", raw, "AES-GCM", true, ["encrypt", "decrypt"]);
+  try {
+    const raw = b64ToBytes(b64);
+    return await crypto.subtle.importKey("raw", raw, "AES-GCM", true, ["encrypt", "decrypt"]);
+  } catch (e) {
+    throw new Error(`Failed to import key from Base64: ${e && e.message ? e.message : e}`);
+  }
 }
 
 async function encryptString(key, plaintext) {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const enc = new TextEncoder();
-  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(plaintext));
-  return { ciphertext: bytesToB64(ciphertext), iv: bytesToB64(iv) };
+  try {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const enc = new TextEncoder();
+    const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(String(plaintext)));
+    return { ciphertext: bytesToB64(ciphertext), iv: bytesToB64(iv) };
+  } catch (e) {
+    throw new Error(`Encryption failed: ${e && e.message ? e.message : e}`);
+  }
 }
 
 async function decryptToString(key, ciphertextB64, ivB64) {
-  const dec = new TextDecoder();
-  const iv = b64ToBytes(ivB64);
-  const ct = b64ToBytes(ciphertextB64);
-  const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
-  return dec.decode(plaintext);
+  try {
+    const dec = new TextDecoder();
+    const iv = b64ToBytes(ivB64);
+    const ct = b64ToBytes(ciphertextB64);
+    const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+    return dec.decode(plaintext);
+  } catch (e) {
+    throw new Error(`Decryption failed: ${e && e.message ? e.message : e}`);
+  }
 }
 
 function Chat({ roomType, user }) {
