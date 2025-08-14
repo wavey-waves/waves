@@ -165,10 +165,6 @@ knowledge_base:
 code_generation:
   docstrings:
     language: en-US
-    path_instructions:
-      - path: ""
-        instructions: ""
+    path_instructions: []
   unit_tests:
-    path_instructions:
-      - path: ""
-        instructions: ""
+    path_instructions: []
