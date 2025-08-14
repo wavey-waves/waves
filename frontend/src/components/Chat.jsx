@@ -18,6 +18,35 @@ const ICE_SERVERS = {
   ],
 };
 
+// ===== Encryption helpers (AES-GCM 256) =====
+const b64ToBytes = (b64) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+const bytesToB64 = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes)));
+
+async function exportKeyBase64(key) {
+  const raw = await crypto.subtle.exportKey("raw", key);
+  return bytesToB64(raw);
+}
+
+async function importKeyBase64(b64) {
+  const raw = b64ToBytes(b64);
+  return crypto.subtle.importKey("raw", raw, "AES-GCM", true, ["encrypt", "decrypt"]);
+}
+
+async function encryptString(key, plaintext) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const enc = new TextEncoder();
+  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(plaintext));
+  return { ciphertext: bytesToB64(ciphertext), iv: bytesToB64(iv) };
+}
+
+async function decryptToString(key, ciphertextB64, ivB64) {
+  const dec = new TextDecoder();
+  const iv = b64ToBytes(ivB64);
+  const ct = b64ToBytes(ciphertextB64);
+  const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+  return dec.decode(plaintext);
+}
+
 function Chat({ roomType, user }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
@@ -31,6 +60,8 @@ function Chat({ roomType, user }) {
   const peerConnectionsRef = useRef(new Map());
   const dataChannelsRef = useRef(new Map());
   const processedMessageIds = useRef(new Set());
+  const groupKeyRef = useRef(null);
+  const currentRoomRef = useRef(null);
 
   //Constants for message input
   const CHARACTER_LIMIT = 1000;
@@ -50,6 +81,39 @@ function Chat({ roomType, user }) {
     window.addEventListener("resize", setVh);
     return () => window.removeEventListener("resize", setVh);
   }, []);
+
+  const storageKeyForRoom = (room) => `waves:groupKey:${room}`;
+
+  const loadKeyForRoom = async (room) => {
+    try {
+      const b64 = localStorage.getItem(storageKeyForRoom(room));
+      if (!b64) return null;
+      return await importKeyBase64(b64);
+    } catch (e) {
+      console.warn("Failed to load group key:", e);
+      return null;
+    }
+  };
+
+  const saveKeyForRoom = async (room, key) => {
+    try {
+      const b64 = await exportKeyBase64(key);
+      localStorage.setItem(storageKeyForRoom(room), b64);
+    } catch (e) {
+      console.warn("Failed to save group key:", e);
+    }
+  };
+
+  const ensureKeyForRoom = async (room, generateIfMissing = false) => {
+    if (groupKeyRef.current) return groupKeyRef.current;
+    let key = await loadKeyForRoom(room);
+    if (!key && generateIfMissing) {
+      key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+      await saveKeyForRoom(room, key);
+    }
+    if (key) groupKeyRef.current = key;
+    return key;
+  };
 
   const scrollToBottom = () => {
     if (messagesContainerRef.current) {
@@ -88,6 +152,31 @@ function Chat({ roomType, user }) {
     setMessages((prevMessages) => [...prevMessages, message]);
   };
 
+  const processInboundAndAdd = async (incoming) => {
+    try {
+      let message = incoming;
+      // Support wrapped payloads from P2P
+      if (incoming && incoming.type === "msg" && incoming.message) {
+        message = incoming.message;
+      }
+      // Decrypt if needed
+      if (message && message.ciphertext && message.iv) {
+        const key = groupKeyRef.current || (currentRoomRef.current && await loadKeyForRoom(currentRoomRef.current));
+        if (!key) {
+          console.warn("No group key available to decrypt incoming message");
+          return;
+        }
+        const text = await decryptToString(key, message.ciphertext, message.iv);
+        addMessage({ ...message, text });
+        return;
+      }
+      // Fallback: plaintext
+      addMessage(message);
+    } catch (e) {
+      console.error("Failed to process inbound message:", e);
+    }
+  };
+
   // Helper to clean up a P2P connection
   const closePeerConnection = (socketId) => {
     peerConnectionsRef.current.get(socketId)?.close();
@@ -99,6 +188,20 @@ function Chat({ roomType, user }) {
   // Setup socket connection and fetch initial data
   useEffect(() => {
     let currentRoom = null;
+
+    const sendGroupKeyToPeer = async (peerSocketId) => {
+      try {
+        const channel = dataChannelsRef.current.get(peerSocketId);
+        if (!channel || channel.readyState !== "open") return;
+        const key = groupKeyRef.current || (currentRoom && await loadKeyForRoom(currentRoom));
+        if (!key) return;
+        const exported = await exportKeyBase64(key);
+        channel.send(JSON.stringify({ type: "key", key: exported }));
+        console.log(`Sent group key to ${peerSocketId}`);
+      } catch (e) {
+        console.warn("Failed to send group key:", e);
+      }
+    };
 
     const createPeerConnection = (peerSocketId, isInitiator) => {
       if(peerConnectionsRef.current.has(peerSocketId)) return;
@@ -130,17 +233,39 @@ function Chat({ roomType, user }) {
           const dataChannel = pc.createDataChannel("chat");
           dataChannelsRef.current.set(peerSocketId, dataChannel);
 
-          dataChannel.onmessage = event => {
-            console.log("%c[P2P] Message received via DataChannel", "color: #22c55e;");
+          dataChannel.onmessage = async event => {
+            console.log("%c[P2P] DataChannel message", "color: #22c55e;");
             try {
-              const message = JSON.parse(event.data)
-              addMessage(message);             
+              const payload = JSON.parse(event.data);
+              if (payload?.type === "key" && payload.key) {
+                if (!groupKeyRef.current) {
+                  const imported = await importKeyBase64(payload.key);
+                  groupKeyRef.current = imported;
+                  if (currentRoom) await saveKeyForRoom(currentRoom, imported);
+                  console.log("Imported group key from peer (initiator channel)");
+                }
+              } else {
+                await processInboundAndAdd(payload);
+              }
             } catch (error) {
               console.error("Failed to parse P2P message:", error);
             }
           };
-          dataChannel.onopen = () => {
+          dataChannel.onopen = async () => {
             console.log(`Data channel with ${peerSocketId} opened.`);
+            // Ensure we have a key; initiator generates if missing
+            let key = groupKeyRef.current || (currentRoom && await loadKeyForRoom(currentRoom));
+            if (!key) {
+              try {
+                key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+                groupKeyRef.current = key;
+                if (currentRoom) await saveKeyForRoom(currentRoom, key);
+                console.log("Generated new group key (initiator)");
+              } catch (e) {
+                console.error("Failed to generate group key:", e);
+              }
+            }
+            await sendGroupKeyToPeer(peerSocketId);
           };
 
           pc.createOffer()
@@ -158,16 +283,32 @@ function Chat({ roomType, user }) {
             const dataChannel = event.channel;
             dataChannelsRef.current.set(peerSocketId, dataChannel);
 
-            dataChannel.onmessage = (e) => {
-              console.log("%c[P2P] Message received via DataChannel", "color: #22c55e;");
+            dataChannel.onmessage = async (e) => {
+              console.log("%c[P2P] DataChannel message", "color: #22c55e;");
               try {
-                const message = JSON.parse(e.data)
-                addMessage(message);             
+                const payload = JSON.parse(e.data);
+                if (payload?.type === "key" && payload.key) {
+                  if (!groupKeyRef.current) {
+                    const imported = await importKeyBase64(payload.key);
+                    groupKeyRef.current = imported;
+                    if (currentRoom) await saveKeyForRoom(currentRoom, imported);
+                    console.log("Imported group key from peer (non-initiator)");
+                  }
+                } else {
+                  await processInboundAndAdd(payload);
+                }
               } catch (error) {
                 console.error("Failed to parse P2P message:", error);
               }
             };
-            dataChannel.onopen = () => console.log(`Data channel with ${peerSocketId} opened.`);
+            dataChannel.onopen = async () => {
+              console.log(`Data channel with ${peerSocketId} opened.`);
+              // If we already have a key, share it; otherwise wait to receive
+              const key = groupKeyRef.current || (currentRoom && await loadKeyForRoom(currentRoom));
+              if (key) {
+                await sendGroupKeyToPeer(peerSocketId);
+              }
+            };
           };
         }
       } catch (error) {
@@ -187,6 +328,9 @@ function Chat({ roomType, user }) {
         } else {
           currentRoom = "global-room";
         }
+        currentRoomRef.current = currentRoom;
+        // Try to load an existing key for this room (non-blocking for joining)
+        loadKeyForRoom(currentRoom).then(key => { if (key) groupKeyRef.current = key; }).catch(() => {});
 
         const endpoint = roomType === "global" ? "/api/messages/global-room" : `/api/messages/${currentRoom}`;
         const response = await axios.get(endpoint);
@@ -194,21 +338,52 @@ function Chat({ roomType, user }) {
             response.data.forEach(msg => {
                 if(msg._id) processedMessageIds.current.add(msg._id)
             });
-            setMessages(response.data.slice(-50));
+            // Decrypt any encrypted messages before displaying
+            const out = [];
+            for (const m of response.data.slice(-50)) {
+              if (m.ciphertext && m.iv) {
+                try {
+                  const key = groupKeyRef.current || await loadKeyForRoom(currentRoom);
+                  if (key) {
+                    const text = await decryptToString(key, m.ciphertext, m.iv);
+                    out.push({ ...m, text });
+                  } else {
+                    out.push(m); // show as-is if no key yet
+                  }
+                } catch {
+                  out.push(m);
+                }
+              } else {
+                out.push(m);
+              }
+            }
+            setMessages(out);
         }
 
-        const upsertMessage = (message) => {
+        const upsertMessage = async (message) => {
           // If this message confirms a temporary one, replace it
           if (message.tempId && message.senderId._id === user.id) {
             // Add the *new* permanent ID to the processed set
             processedMessageIds.current.add(message._id);
 
+            // Decrypt if needed before replacing
+            let finalMsg = message;
+            if (message.ciphertext && message.iv) {
+              try {
+                const key = groupKeyRef.current || (currentRoom && await loadKeyForRoom(currentRoom));
+                if (key) {
+                  const text = await decryptToString(key, message.ciphertext, message.iv);
+                  finalMsg = { ...message, text };
+                }
+              } catch {}
+            }
+
             setMessages(prev => 
-              prev.map(m => m._id === message.tempId ? message : m)
+              prev.map(m => m._id === message.tempId ? finalMsg : m)
             );
           } else {
             // Otherwise, add it normally (it's from another user)
-            addMessage(message);
+            await processInboundAndAdd(message);
           }
         };
 
@@ -219,9 +394,9 @@ function Chat({ roomType, user }) {
           });
 
           // Setup message handler
-          socketRef.current.on("chatMessage", message => {
+          socketRef.current.on("chatMessage", async message => {
             console.log("%c[SERVER] Message received via WebSocket", "color: #f97316;");
-            upsertMessage(message);
+            await upsertMessage(message);
           });
 
           // Setup error handler
@@ -327,6 +502,7 @@ function Chat({ roomType, user }) {
       connections.clear();
       channels.clear();
       processedMessages.clear();
+      // Note: keep groupKeyRef and localStorage to persist per-room key
     };
   }, [user, roomType]);
 
@@ -354,44 +530,71 @@ function Chat({ roomType, user }) {
       createdAt: new Date().toISOString()
     };
 
-    addMessage(messagePayload);
-
-    let wasSentByP2P = false;
-    let peerCount = 0;
-
-    dataChannelsRef.current.forEach((channel) => {
-      peerCount++;
-      if (channel.readyState === "open") {
-        try {
-          channel.send(JSON.stringify(messagePayload));
-          console.log(`[CLIENT]Message sent to peer via P2P`);
-          wasSentByP2P = true;
-        } catch (error) {
-          console.error(`P2P send error:`, error);
-        }
-      }
-    });
-
-    // If there are no peers, P2P send is irrelevant
-    if (peerCount === 0) {
-      wasSentByP2P = false;
-    }
-
-    // Always send to server for fallback and persistence
+    // Ensure group key exists
     try {
       const roomName = roomType === "global" ? "global-room" : roomInfo?.roomName;
       if (!roomName) throw new Error("Room name not available");
-      const endpoint = `/api/messages/send/${roomName}`;
+      const key = await ensureKeyForRoom(roomName, true);
+      if (!key) throw new Error("Failed to get or create group key");
+      const { ciphertext, iv } = await encryptString(key, messagePayload.text);
 
-      // 🔽 Add a 'p2pSent' flag to the server request
-      await axios.post(endpoint, {
-        text: messagePayload.text,
-        tempId: messagePayload._id,
-        p2pSent: wasSentByP2P
+      // Show locally as plaintext
+      addMessage(messagePayload);
+
+      let wasSentByP2P = false;
+      let peerCount = 0;
+
+      dataChannelsRef.current.forEach((channel, peerSocketId) => {
+        peerCount++;
+        if (channel.readyState === "open") {
+          try {
+            const p2pMsg = {
+              type: "msg",
+              message: {
+                _id: messagePayload._id,
+                tempId: messagePayload._id,
+                ciphertext,
+                iv,
+                senderId: messagePayload.senderId,
+                createdAt: messagePayload.createdAt,
+                room: roomName
+              }
+            };
+            channel.send(JSON.stringify(p2pMsg));
+            console.log(`[CLIENT] Message sent to peer via P2P`);
+            wasSentByP2P = true;
+          } catch (error) {
+            console.error(`P2P send error:`, error);
+          }
+        }
       });
-    } catch (error) {
-      toast.error("Failed to send message to server.");
-      console.error("Server send error:", error);
+
+      // If there are no peers, P2P send is irrelevant
+      if (peerCount === 0) {
+        wasSentByP2P = false;
+      }
+
+      // Always send to server for fallback and persistence
+      try {
+        const room = roomType === "global" ? "global-room" : roomInfo?.roomName;
+        if (!room) throw new Error("Room name not available");
+        const endpoint = `/api/messages/send/${room}`;
+
+        await axios.post(endpoint, {
+          // send encrypted content to server
+          ciphertext,
+          iv,
+          tempId: messagePayload._id,
+          p2pSent: wasSentByP2P
+        });
+      } catch (error) {
+        toast.error("Failed to send message to server.");
+        console.error("Server send error:", error);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Encryption not supported or key error");
+      return;
     }
 
     setNewMessage("");
