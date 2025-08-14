@@ -19,8 +19,7 @@
     "react-toastify": "^11.0.5",
     "socket.io-client": "^4.8.1",
     "tailwindcss": "^4.1.7",
-    "unique-names-generator": "^4.7.1",
-    "waves": "file:.."
+    "unique-names-generator": "^4.7.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
