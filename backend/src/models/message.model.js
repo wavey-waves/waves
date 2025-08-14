@@ -15,11 +15,6 @@ const messageSchema = new mongoose.Schema(
       default: "global-room",
       required: true
     },
-    // Legacy plaintext field (may be empty when using E2EE)
-    text: {
-      type: String,
-    },
-    // Encrypted payload fields
     ciphertext: {
       type: String,
     },

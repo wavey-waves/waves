@@ -2,27 +2,27 @@
 
 Waves is a modern, real-time chat application that offers both global and network-based chat rooms. Built with React, Node.js, and Socket.IO, it features a beautiful, responsive UI and seamless real-time communication.
 
-## ✨ Features
+## Features
 
-### 🌐 Global Chat
+### Global Chat
 - Join a global chatroom accessible to all users
 - Real-time message updates
 - User presence indicators
 - Beautiful, modern UI with gradient effects
 
-### 🔗 Network Chat
+### Network Chat
 - Automatic room assignment based on IP subnet
 - Connect with users on the same network
 - Real-time message updates within network rooms
 - Member list with user status
 
-### 👤 User Authentication
+### User Authentication
 - Anonymous login with randomly generated names
 - Custom account creation
 - Persistent user colors
 - Secure authentication with JWT
 
-### 🎨 UI/UX
+### UI/UX
 - Modern, responsive design
 - Beautiful gradient animations
 - Dark theme optimized for readability
@@ -33,7 +33,17 @@ Waves is a modern, real-time chat application that offers both global and networ
 - Send button disables and rate-limits
 - Error toasts for empty/long/too-fast messages
 
-## 🚀 Getting Started
+### P2P Communication
+- Peer-to-peer messaging via WebRTC Data Channels whenever possible
+- Automatic fallback to server relaying (Socket.IO) when P2P is unavailable
+
+### Message Encryption
+- Per-room shared group key (AES‑GCM 256) generated on the client
+- Keys are exchanged over P2P and stored only on the client (localStorage)
+- Server stores only ciphertext and IV; plaintext never leaves the browser
+- Backward-compatible with legacy plaintext messages
+
+## Getting Started
 
 ### Prerequisites
 - Node.js (v14 or higher)
@@ -100,7 +110,7 @@ npm run dev
 - MongoDB with Mongoose
 - JWT Authentication
 
-## 📱 Usage
+## Usage
 
 1. **Global Chat**
    - Click "Join Global Room" on the home page
@@ -117,7 +127,7 @@ npm run dev
    - Or use anonymous login with auto-generated username
    - Your color will be preserved across sessions
 
-## 🔒 Security Features
+## Security Features
 
 - JWT-based authentication
 - HTTP-only cookies
@@ -125,7 +135,7 @@ npm run dev
 - CORS configuration
 - Input validation and sanitization
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
@@ -135,7 +145,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - [Socket.IO](https://socket.io/)
 - [TailwindCSS](https://tailwindcss.com/)
