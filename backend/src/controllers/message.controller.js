@@ -20,17 +20,19 @@ export const getMessages = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
   try {
-    const {text, image, tempId} = req.body;
+    const {text, image, tempId, ciphertext, iv} = req.body;
     const senderId = req.user._id;
     const roomName = req.params.roomName;
 
-    if (!text || text.trim() === '') {
-      return res.status(400).json({ error: "Message text is required" });
+    if ((!text || text.trim() === '') && (!ciphertext || !iv)) {
+      return res.status(400).json({ error: "Message content is required" });
     }
 
     const newMessage = new Message({
       senderId,
-      text: text.trim(),
+      text: text?.trim(),
+      ciphertext,
+      iv,
       room: roomName,
     });
 
