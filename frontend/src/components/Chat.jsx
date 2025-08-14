@@ -491,14 +491,7 @@ function Chat({ roomType, user }) {
             await saveKeyForRoom(currentRoom, newKey);
             console.log(`[Key] Generated new key for global room: ${currentRoom}`);
             
-            // Share the new key via server immediately
-            try {
-              const exported = await exportKeyBase64(newKey);
-              socketRef.current.emit("share-group-key", { roomName: currentRoom, key: exported });
-              console.log(`[Key] Shared new key via server for room: ${currentRoom}`);
-            } catch (e) {
-              console.error("Failed to share new key via server:", e);
-            }
+            // Key will be shared via server after joining the room (3s fallback)
           } catch (e) {
             console.error("Failed to generate initial global room key:", e);
           }
@@ -639,6 +632,13 @@ function Chat({ roomType, user }) {
           socketRef.current.on("group-key-shared", async ({ roomName, key }) => {
             console.log(`Received group key for room ${roomName} from server.`);
             if (currentRoom === roomName) {
+              // Check if we already have a key for this room
+              const existingKey = groupKeyRef.current || await loadKeyForRoom(currentRoom);
+              if (existingKey) {
+                console.log(`[Key] Ignoring server-provided key for room ${roomName} - local key already exists`);
+                return;
+              }
+              
               try {
                 const imported = await importKeyBase64(key);
                 groupKeyRef.current = imported;
@@ -657,7 +657,7 @@ function Chat({ roomType, user }) {
                 const key = groupKeyRef.current || await loadKeyForRoom(currentRoom);
                 if (key) {
                   const exported = await exportKeyBase64(key);
-                  socketRef.current.emit("group-key-shared", { roomName, key: exported });
+                  socketRef.current.emit("share-group-key", { roomName, key: exported });
                   console.log(`Shared group key for room ${currentRoom} to server.`);
                 } else {
                   console.warn(`No key available for room ${currentRoom} to share with server.`);

@@ -72,7 +72,7 @@ io.on("connection", socket => {
     }
     
     // Ask other users in the room to share their key
-    socket.to(roomName).emit("group-key-requested", {
+    socket.to(roomName).emit("group-key-request", {
       from: socket.id,
       roomName: roomName
     });
