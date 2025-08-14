@@ -218,6 +218,21 @@ function Chat({ roomType, user }) {
     scrollToBottom();
   }, [messages]);
 
+  // Periodic check for pending messages to ensure delivery
+  useEffect(() => {
+    if (!user || !currentRoomRef.current) return;
+    
+    const pendingCheckInterval = setInterval(() => {
+      const pendingCount = messages.filter(m => m.pending && m.senderId._id === user.id).length;
+      if (pendingCount > 0 && dataChannelsRef.current.size === 0) {
+        console.log(`[Periodic] Found ${pendingCount} pending messages with no P2P connections, retrying via server`);
+        retryPendingMessages();
+      }
+    }, 5000); // Check every 5 seconds
+    
+    return () => clearInterval(pendingCheckInterval);
+  }, [messages, user, dataChannelsRef.current.size]);
+
   // Helper to add a message to state, preventing duplicates
   const addMessage = (message) => {
     // Ignore if the message is invalid
@@ -241,6 +256,27 @@ function Chat({ roomType, user }) {
     }
 
     setMessages((prevMessages) => [...prevMessages, message]);
+  };
+
+  // Helper to retry pending messages that haven't been delivered
+  const retryPendingMessages = async () => {
+    const pendingMessages = messages.filter(m => m.pending && m.senderId._id === user.id);
+    if (pendingMessages.length === 0) return;
+    
+    console.log(`[Retry] Found ${pendingMessages.length} pending messages, attempting server delivery`);
+    
+    for (const msg of pendingMessages) {
+      const roomName = msg.roomName || currentRoomRef.current;
+      if (roomName) {
+        const success = await retryMessageViaServer(msg, roomName);
+        if (success) {
+          // Mark message as no longer pending
+          setMessages(prev => prev.map(m => 
+            m._id === msg._id ? { ...m, pending: false } : m
+          ));
+        }
+      }
+    }
   };
 
   const processInboundAndAdd = async (incoming) => {
@@ -287,6 +323,43 @@ function Chat({ roomType, user }) {
     peerConnectionsRef.current.delete(socketId);
     dataChannelsRef.current.delete(socketId);
     console.log(`Closed P2P connection to ${socketId}`);
+    
+    // If no P2P connections remain, ensure server fallback is available
+    if (dataChannelsRef.current.size === 0) {
+      console.log(`[P2P] No connections remaining, server fallback active for message delivery`);
+    }
+  };
+
+  // Helper to retry message delivery via server when P2P fails
+  const retryMessageViaServer = async (messagePayload, roomName) => {
+    try {
+      if (!socketRef.current?.connected) {
+        console.warn("[Retry] Socket not connected, cannot retry message via server");
+        return false;
+      }
+      
+      const key = groupKeyRef.current || await loadKeyForRoom(roomName);
+      if (!key) {
+        console.warn("[Retry] No key available for message retry");
+        return false;
+      }
+      
+      const { ciphertext, iv } = await encryptString(key, messagePayload.text);
+      const endpoint = `/api/messages/send/${roomName}`;
+      
+      await axios.post(endpoint, {
+        ciphertext,
+        iv,
+        tempId: messagePayload._id,
+        p2pSent: false // Mark as server-only delivery
+      });
+      
+      console.log(`[Retry] Message ${messagePayload._id} successfully delivered via server`);
+      return true;
+    } catch (error) {
+      console.error("[Retry] Failed to retry message via server:", error);
+      return false;
+    }
   };
 
   // Setup socket connection and fetch initial data
@@ -344,6 +417,14 @@ function Chat({ roomType, user }) {
           console.log(`P2P connection state with ${peerSocketId}: ${state}`);
           if (state === "failed" || state === "disconnected" || state === "closed") {
               closePeerConnection(peerSocketId);
+              
+              // If this was our only P2P connection and we have pending messages,
+              // trigger server fallback for message delivery
+              if (dataChannelsRef.current.size === 0) {
+                console.log(`[P2P] Last connection lost, enabling server fallback for message delivery`);
+                // Trigger retry of any pending messages
+                setTimeout(() => retryPendingMessages(), 1000);
+              }
           }
         };
 
