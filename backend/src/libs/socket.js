@@ -46,6 +46,38 @@ io.on("connection", socket => {
     socket.to(to).emit("webrtc-ice-candidate", {candidate, from: socket.id});
   });
 
+  // Group key sharing via server (fallback when P2P fails)
+  socket.on("share-group-key", ({roomName, key}) => {
+    // Validate the sender is in the room
+    if (!socket.rooms.has(roomName)) {
+      console.warn(`User ${socket.id} tried to share key for room ${roomName} but not in it`);
+      return;
+    }
+    
+    // Broadcast the key to all other users in the room
+    socket.to(roomName).emit("group-key-shared", {
+      from: socket.id,
+      key: key,
+      roomName: roomName
+    });
+    console.log(`User ${socket.id} shared group key for room ${roomName} via server`);
+  });
+
+  // Request group key from room members
+  socket.on("request-group-key", ({roomName}) => {
+    // Validate the sender is in the room
+    if (!socket.rooms.has(roomName)) {
+      console.warn(`User ${socket.id} tried to request key for room ${roomName} but not in it`);
+      return;
+    }
+    
+    // Ask other users in the room to share their key
+    socket.to(roomName).emit("group-key-requested", {
+      from: socket.id,
+      roomName: roomName
+    });
+    console.log(`User ${socket.id} requested group key for room ${roomName}`);
+  });
 
   // Handle joining rooms
   socket.on("join", (roomName) => {

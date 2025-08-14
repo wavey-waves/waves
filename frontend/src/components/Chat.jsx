@@ -257,6 +257,7 @@ function Chat({ roomType, user }) {
           const key = groupKeyRef.current || (roomCtx && await loadKeyForRoom(roomCtx));
           if (!key) {
             console.warn(`[Decrypt] No group key for room=${roomCtx || "<unknown>"} while processing message id=${message._id || "<no-id>"} from sender=${message?.senderId?._id || "<unknown>"}`);
+            console.warn(`[Decrypt] groupKeyRef.current: ${!!groupKeyRef.current}, currentRoomRef.current: ${roomCtx}, dataChannelsRef.size: ${dataChannelsRef.current.size}`);
             // Fallback: add original message for visibility
             addMessage({ ...message, failedToDecrypt: true });
             return;
@@ -360,6 +361,15 @@ function Chat({ roomType, user }) {
                   groupKeyRef.current = imported;
                   if (currentRoom) await saveKeyForRoom(currentRoom, imported);
                   console.log("Imported group key from peer (initiator channel)");
+                  
+                  // Also share via server for other peers
+                  try {
+                    const exported = await exportKeyBase64(imported);
+                    socketRef.current.emit("share-group-key", { roomName: currentRoom, key: exported });
+                    console.log(`[Key] Shared imported key via server for room: ${currentRoom}`);
+                  } catch (e) {
+                    console.error("Failed to share imported key via server:", e);
+                  }
                 }
               } else {
                 await processInboundAndAdd(payload);
@@ -382,7 +392,9 @@ function Chat({ roomType, user }) {
                 console.error("Failed to generate group key:", e);
               }
             }
-            await sendGroupKeyToPeer(peerSocketId);
+            if (key) {
+              await sendGroupKeyToPeer(peerSocketId);
+            }
           };
 
           pc.createOffer()
@@ -410,6 +422,15 @@ function Chat({ roomType, user }) {
                     groupKeyRef.current = imported;
                     if (currentRoom) await saveKeyForRoom(currentRoom, imported);
                     console.log("Imported group key from peer (non-initiator)");
+                    
+                    // Also share via server for other peers
+                    try {
+                      const exported = await exportKeyBase64(imported);
+                      socketRef.current.emit("share-group-key", { roomName: currentRoom, key: exported });
+                      console.log(`[Key] Shared imported key via server for room: ${currentRoom}`);
+                    } catch (e) {
+                      console.error("Failed to share imported key via server:", e);
+                    }
                   }
                 } else {
                   await processInboundAndAdd(payload);
@@ -424,6 +445,8 @@ function Chat({ roomType, user }) {
               const key = groupKeyRef.current || (currentRoom && await loadKeyForRoom(currentRoom));
               if (key) {
                 await sendGroupKeyToPeer(peerSocketId);
+              } else {
+                console.log(`[Key] Waiting to receive key from peer ${peerSocketId} for room ${currentRoom}`);
               }
             };
           };
@@ -449,9 +472,36 @@ function Chat({ roomType, user }) {
         // Try to load an existing key for this room before proceeding
         try {
           const loadedKey = await loadKeyForRoom(currentRoom);
-          if (loadedKey) groupKeyRef.current = loadedKey;
+          if (loadedKey) {
+            groupKeyRef.current = loadedKey;
+            console.log(`[Key] Loaded existing key for room: ${currentRoom}`);
+          } else {
+            console.log(`[Key] No existing key found for room: ${currentRoom}`);
+          }
         } catch (e) {
           console.warn("Failed to load group key:", e);
+        }
+
+        // If no key exists and this is a global room, generate one immediately
+        // This ensures at least one user has a key to share
+        if (!groupKeyRef.current && currentRoom === "global-room") {
+          try {
+            const newKey = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+            groupKeyRef.current = newKey;
+            await saveKeyForRoom(currentRoom, newKey);
+            console.log(`[Key] Generated new key for global room: ${currentRoom}`);
+            
+            // Share the new key via server immediately
+            try {
+              const exported = await exportKeyBase64(newKey);
+              socketRef.current.emit("share-group-key", { roomName: currentRoom, key: exported });
+              console.log(`[Key] Shared new key via server for room: ${currentRoom}`);
+            } catch (e) {
+              console.error("Failed to share new key via server:", e);
+            }
+          } catch (e) {
+            console.error("Failed to generate initial global room key:", e);
+          }
         }
 
         const endpoint = roomType === "global" ? "/api/messages/global-room" : `/api/messages/${currentRoom}`;
@@ -585,10 +635,59 @@ function Chat({ roomType, user }) {
             toast.warn("A user has left the room.");
             closePeerConnection(socketId);
           });
+
+          socketRef.current.on("group-key-shared", async ({ roomName, key }) => {
+            console.log(`Received group key for room ${roomName} from server.`);
+            if (currentRoom === roomName) {
+              try {
+                const imported = await importKeyBase64(key);
+                groupKeyRef.current = imported;
+                await saveKeyForRoom(currentRoom, imported);
+                console.log(`Imported group key for room ${currentRoom} from server.`);
+              } catch (e) {
+                console.error("Failed to import key from server:", e);
+              }
+            }
+          });
+
+          socketRef.current.on("group-key-request", async ({ roomName }) => {
+            console.log(`Received group key request for room ${roomName} from server.`);
+            if (currentRoom === roomName) {
+              try {
+                const key = groupKeyRef.current || await loadKeyForRoom(currentRoom);
+                if (key) {
+                  const exported = await exportKeyBase64(key);
+                  socketRef.current.emit("group-key-shared", { roomName, key: exported });
+                  console.log(`Shared group key for room ${currentRoom} to server.`);
+                } else {
+                  console.warn(`No key available for room ${currentRoom} to share with server.`);
+                }
+              } catch (e) {
+                console.error("Failed to share key with server:", e);
+              }
+            }
+          });
         }
 
         // Join the room
         socketRef.current.emit("join", currentRoom);
+
+        // Add a fallback: if we have a key but no P2P connections after a delay,
+        // try to share it via the server (this helps with deployment scenarios)
+        setTimeout(async () => {
+          if (groupKeyRef.current && dataChannelsRef.current.size === 0) {
+            console.log(`[Key] No P2P connections established, sharing key via server for room: ${currentRoom}`);
+            try {
+              const exported = await exportKeyBase64(groupKeyRef.current);
+              socketRef.current.emit("share-group-key", { roomName: currentRoom, key: exported });
+            } catch (e) {
+              console.error("Failed to share key via server:", e);
+            }
+          } else if (!groupKeyRef.current) {
+            console.log(`[Key] No key available, requesting from room members via server for room: ${currentRoom}`);
+            socketRef.current.emit("request-group-key", { roomName: currentRoom });
+          }
+        }, 3000); // Wait 3 seconds for P2P to establish
       } catch (error) {
         console.error("Error setting up socket or fetching data:", error);
         toast.error("Failed to connect to chat server");
@@ -830,6 +929,25 @@ function Chat({ roomType, user }) {
               const senderName = isCurrentUser ? user.username : message.senderId.userName;
               const senderColor = isCurrentUser ? colors.userColor : message.senderId.color;
 
+              // Handle different message states
+              let messageContent = message.text;
+              let messageStyle = "text-white/90";
+              let borderStyle = `${senderColor}30`;
+              
+              if (message.failedToDecrypt) {
+                messageContent = "🔒 Message could not be decrypted (encryption key missing)";
+                messageStyle = "text-red-400 italic";
+                borderStyle = "border-red-500/50";
+              } else if (message.pending) {
+                messageContent = message.text;
+                messageStyle = "text-white/70 italic";
+                borderStyle = `${senderColor}20`;
+              } else if (!message.text && message.ciphertext) {
+                messageContent = "🔒 Encrypted message (decrypting...)";
+                messageStyle = "text-yellow-400 italic";
+                borderStyle = "border-yellow-500/50";
+              }
+
               return (
                 <div
                   key={message._id || index}
@@ -848,11 +966,11 @@ function Chat({ roomType, user }) {
                       className={`rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 backdrop-blur-sm border text-white mb-1`}
                       style={{
                         backgroundColor: `${senderColor}20`,
-                        borderColor: `${senderColor}30`,
+                        borderColor: borderStyle,
                       }}
                     >
-                      <p className="text-white/90 text-sm sm:text-base break-words text-left">
-                        {message.text}
+                      <p className={`${messageStyle} text-sm sm:text-base break-words text-left`}>
+                        {messageContent}
                       </p>
                     </div>
                   </div>
