@@ -37,12 +37,6 @@ Waves is a modern, real-time chat application that offers both global and networ
 - Peer-to-peer messaging via WebRTC Data Channels whenever possible
 - Automatic fallback to server relaying (Socket.IO) when P2P is unavailable
 
-### Message Encryption
-- Per-room shared group key (AES‑GCM 256) generated on the client
-- Keys are exchanged over P2P and stored only on the client (localStorage)
-- Server stores only ciphertext and IV; plaintext never leaves the browser
-- Backward-compatible with legacy plaintext messages
-
 ## Getting Started
 
 ### Prerequisites
