@@ -21,6 +21,21 @@ const messageSchema = new mongoose.Schema(
     image: {
       type: String,
     },
+    reactions: [{
+      userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Users",
+        required: true
+      },
+      emoji: {
+        type: String,
+        required: true
+      },
+      createdAt: {
+        type: Date,
+        default: Date.now
+      }
+    }],
     expiresAt: {
       type: Date,
       default: () => new Date(Date.now() + MESSAGE_EXPIRY),

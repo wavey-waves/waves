@@ -32,6 +32,14 @@ function Chat({ roomType, user }) {
   const dataChannelsRef = useRef(new Map());
   const processedMessageIds = useRef(new Set());
 
+  // Reaction state
+  const [showEmojiPicker, setShowEmojiPicker] = useState(null);
+  const [longPressTimer, setLongPressTimer] = useState(null);
+  const [hoverTimer, setHoverTimer] = useState(null);
+
+  // Common emojis for quick selection
+  const quickEmojis = ['👍', '❤️', '😂', '😮', '😢', '😡'];
+
   //Constants for message input
   const CHARACTER_LIMIT = 1000;
   const CHARACTER_WARNING = 900;
@@ -86,6 +94,108 @@ function Chat({ roomType, user }) {
     }
 
     setMessages((prevMessages) => [...prevMessages, message]);
+  };
+
+  // Helper to update a message (for reactions)
+  const updateMessage = (updatedMessage) => {
+    setMessages(prevMessages => 
+      prevMessages.map(msg => 
+        msg._id === updatedMessage._id ? updatedMessage : msg
+      )
+    );
+  };
+
+  // Handle reaction to message
+  const handleReaction = async (messageId, emoji) => {
+    try {
+      // Optimistic update - immediately update the UI
+      setMessages(prevMessages => 
+        prevMessages.map(msg => {
+          if (msg._id === messageId) {
+            const newReactions = [...(msg.reactions || [])];
+            
+            // Check if user already reacted with this emoji
+            const existingReactionIndex = newReactions.findIndex(
+              reaction => (reaction.userId._id === user.id || reaction.userId === user.id) && reaction.emoji === emoji
+            );
+
+            if (existingReactionIndex > -1) {
+              // Remove the reaction if it exists
+              newReactions.splice(existingReactionIndex, 1);
+            } else {
+              // Remove any other reaction from this user first (one reaction per user)
+              const filteredReactions = newReactions.filter(
+                reaction => reaction.userId._id !== user.id && reaction.userId !== user.id
+              );
+              // Add the new reaction
+              filteredReactions.push({ 
+                userId: { _id: user.id, userName: user.username }, 
+                emoji,
+                createdAt: new Date()
+              });
+              newReactions.splice(0, newReactions.length, ...filteredReactions);
+            }
+            
+            return { ...msg, reactions: newReactions };
+          }
+          return msg;
+        })
+      );
+
+      setShowEmojiPicker(null);
+      
+      // Make the API call in the background
+      await axios.post(`/api/messages/${messageId}/react`, { emoji });
+      
+      // Note: The server will emit "message-reacted" which will update with the authoritative data
+      // This ensures consistency if there were any conflicts
+      
+    } catch (error) {
+      console.error("Error reacting to message:", error);
+      toast.error("Failed to react to message");
+      
+      // On error, we could revert the optimistic update here if needed
+      // For now, the server's response via socket will correct any inconsistencies
+    }
+  };
+
+  // Long press handlers
+  const handleLongPressStart = (messageId) => {
+    const timer = setTimeout(() => {
+      setShowEmojiPicker(messageId);
+    }, 200); // 200ms long press (reduced from 500ms)
+    setLongPressTimer(timer);
+  };
+
+  const handleLongPressEnd = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+  };
+
+  // Hover handlers
+  const handleMouseEnter = (messageId) => {
+    const timer = setTimeout(() => {
+      setShowEmojiPicker(messageId);
+    }, 100); // 100ms hover delay (reduced from 200ms)
+    setHoverTimer(timer);
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimer) {
+      clearTimeout(hoverTimer);
+      setHoverTimer(null);
+    }
+    // Don't immediately close the picker on mouse leave
+    // Let it stay open so user can click on emojis
+  };
+
+  // Close emoji picker when clicking outside or after a delay
+  const handleEmojiPickerClose = () => {
+    setTimeout(() => {
+      setShowEmojiPicker(null);
+    }, 100); // 100ms delay (reduced from 100ms - keeping the same)
   };
 
   // Helper to clean up a P2P connection
@@ -222,6 +332,12 @@ function Chat({ roomType, user }) {
           socketRef.current.on("chatMessage", message => {
             console.log("%c[SERVER] Message received via WebSocket", "color: #f97316;");
             upsertMessage(message);
+          });
+
+          // Handle message reactions
+          socketRef.current.on("message-reacted", (updatedMessage) => {
+            console.log("%c[SERVER] Message reaction received", "color: #f97316;");
+            updateMessage(updatedMessage);
           });
 
           // Setup error handler
@@ -401,6 +517,18 @@ function Chat({ roomType, user }) {
     }
   };
 
+  // Group reactions by emoji
+  const groupReactions = (reactions) => {
+    const grouped = {};
+    reactions.forEach(reaction => {
+      if (!grouped[reaction.emoji]) {
+        grouped[reaction.emoji] = [];
+      }
+      grouped[reaction.emoji].push(reaction);
+    });
+    return grouped;
+  };
+
   const getGradientColors = () => {
     return roomType === "global" 
       ? {
@@ -484,6 +612,7 @@ function Chat({ roomType, user }) {
           <div
             ref={messagesContainerRef}
             className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 sm:py-4 space-y-2 custom-scrollbar pb-[100px] sm:pb-[100px] md:pb-[110px] lg:pb-[120px]"
+            onClick={() => setShowEmojiPicker(null)} // Close emoji picker when clicking outside
           >
             {messages.map((message, index) => {
               // Skip rendering if senderId is null
@@ -492,6 +621,8 @@ function Chat({ roomType, user }) {
               const isCurrentUser = message.senderId._id === user.id;
               const senderName = isCurrentUser ? user.username : message.senderId.userName;
               const senderColor = isCurrentUser ? colors.userColor : message.senderId.color;
+              const reactions = message.reactions || [];
+              const groupedReactions = groupReactions(reactions);
 
               return (
                 <div
@@ -507,16 +638,75 @@ function Chat({ roomType, user }) {
                     >
                       {senderName}
                     </div>
-                    <div
-                      className={`rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 backdrop-blur-sm border text-white mb-1`}
-                      style={{
-                        backgroundColor: `${senderColor}20`,
-                        borderColor: `${senderColor}30`,
-                      }}
-                    >
-                      <p className="text-white/90 text-sm sm:text-base break-words text-left">
-                        {message.text}
-                      </p>
+                    <div className="relative">
+                      <div
+                        className={`rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 backdrop-blur-sm border text-white mb-1 cursor-pointer select-none transition-all hover:brightness-110`}
+                        style={{
+                          backgroundColor: `${senderColor}20`,
+                          borderColor: `${senderColor}30`,
+                        }}
+                        onMouseDown={() => handleLongPressStart(message._id)}
+                        onMouseUp={handleLongPressEnd}
+                        onMouseEnter={() => handleMouseEnter(message._id)}
+                        onMouseLeave={() => {
+                          handleLongPressEnd();
+                          handleMouseLeave();
+                        }}
+                        onTouchStart={() => handleLongPressStart(message._id)}
+                        onTouchEnd={handleLongPressEnd}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <p className="text-white/90 text-sm sm:text-base break-words text-left">
+                          {message.text}
+                        </p>
+                      </div>
+
+                      {/* Reactions Display */}
+                      {Object.keys(groupedReactions).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {Object.entries(groupedReactions).map(([emoji, reactionList]) => (
+                            <button
+                              key={emoji}
+                              className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-all hover:bg-white/10 ${
+                                reactionList.some(r => r.userId._id === user.id || r.userId === user.id)
+                                  ? 'bg-white/20 border border-white/30'
+                                  : 'bg-white/5 border border-white/10'
+                              }`}
+                              onClick={() => handleReaction(message._id, emoji)}
+                              title={reactionList.map(r => r.userId.userName || r.userId).join(', ')}
+                            >
+                              <span>{emoji}</span>
+                              <span className="text-white/80">{reactionList.length}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Emoji Picker */}
+                      {showEmojiPicker === message._id && (
+                        <div 
+                          className="absolute bottom-full left-0 mb-2 bg-black/90 backdrop-blur-sm border border-white/20 rounded-lg p-2 flex gap-2 z-50 shadow-xl"
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseEnter={() => {
+                            // Clear any pending close timers when hovering over picker
+                            if (hoverTimer) {
+                              clearTimeout(hoverTimer);
+                              setHoverTimer(null);
+                            }
+                          }}
+                          onMouseLeave={handleEmojiPickerClose}
+                        >
+                          {quickEmojis.map(emoji => (
+                            <button
+                              key={emoji}
+                              className="text-xl hover:scale-125 transition-transform p-1 rounded hover:bg-white/10"
+                              onClick={() => handleReaction(message._id, emoji)}
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -584,7 +774,7 @@ function Chat({ roomType, user }) {
                     ? "opacity-50 cursor-not-allowed"
                     : ""
                 }`}
-                style={{ height: "40px", minHeight: "40px", alignSelf: "end" }}
+                style={{ height: "40px", minHeight: "40px", alignSelf: "start" }}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -638,4 +828,4 @@ function Chat({ roomType, user }) {
   );
 }
 
-export default Chat; 
+export default Chat;
