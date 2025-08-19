@@ -108,12 +108,16 @@ function Chat({ roomType, user }) {
 
   // Handle reaction to message
   const handleReaction = async (messageId, emoji) => {
+    let rollbackReactions = null;
     try {
       // Optimistic update - immediately update the UI
-      setMessages(prevMessages => 
+      setMessages(prevMessages =>
         prevMessages.map(msg => {
           if (msg._id === messageId) {
-            const newReactions = [...(msg.reactions || [])];
+            const prev = Array.isArray(msg.reactions) ? msg.reactions : [];
+            // Deep copy for rollback
+            rollbackReactions = JSON.parse(JSON.stringify(prev));
+            const newReactions = [...prev];
             
             // Check if user already reacted with this emoji
             const existingReactionIndex = newReactions.findIndex(
@@ -154,9 +158,12 @@ function Chat({ roomType, user }) {
     } catch (error) {
       console.error("Error reacting to message:", error);
       toast.error("Failed to react to message");
-      
-      // On error, we could revert the optimistic update here if needed
-      // For now, the server's response via socket will correct any inconsistencies
+      // Revert the optimistic update if the request failed
+      if (rollbackReactions) {
+        setMessages(prev =>
+          prev.map(m => m._id === messageId ? { ...m, reactions: rollbackReactions } : m)
+        );
+      }
     }
   };
 
