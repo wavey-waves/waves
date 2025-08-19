@@ -21,21 +21,32 @@ const messageSchema = new mongoose.Schema(
     image: {
       type: String,
     },
-    reactions: [{
-      userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Users",
-        required: true
-      },
-      emoji: {
-        type: String,
-        required: true
-      },
-      createdAt: {
-        type: Date,
-        default: Date.now
+    reactions: {
+      type: [{
+        userId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Users",
+          required: true
+        },
+        emoji: {
+          type: String,
+          required: true
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now
+        }
+      }],
+      default: [],
+      validate: {
+        validator: function(reactions) {
+          // Check for duplicate userIds in reactions array
+          const userIds = reactions.map(r => r.userId.toString());
+          return userIds.length === new Set(userIds).size;
+        },
+        message: 'Each user can only have one reaction per message'
       }
-    }],
+    },
     expiresAt: {
       type: Date,
       default: () => new Date(Date.now() + MESSAGE_EXPIRY),

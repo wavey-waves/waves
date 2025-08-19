@@ -36,6 +36,7 @@ function Chat({ roomType, user }) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(null);
   const [longPressTimer, setLongPressTimer] = useState(null);
   const [hoverTimer, setHoverTimer] = useState(null);
+  const [showReactionDetails, setShowReactionDetails] = useState(null);
 
   // Common emojis for quick selection
   const quickEmojis = ['👍', '❤️', '😂', '😮', '😢', '😡'];
@@ -163,7 +164,7 @@ function Chat({ roomType, user }) {
   const handleLongPressStart = (messageId) => {
     const timer = setTimeout(() => {
       setShowEmojiPicker(messageId);
-    }, 200); // 200ms long press (reduced from 500ms)
+    }, 200);
     setLongPressTimer(timer);
   };
 
@@ -196,6 +197,25 @@ function Chat({ roomType, user }) {
     setTimeout(() => {
       setShowEmojiPicker(null);
     }, 100); // 100ms delay (reduced from 100ms - keeping the same)
+  };
+
+  // Handle showing reaction details
+  const handleReactionDetailsToggle = (messageId, emoji, reactionList, event) => {
+    event.stopPropagation();
+    if (showReactionDetails?.messageId === messageId && showReactionDetails?.emoji === emoji) {
+      setShowReactionDetails(null);
+    } else {
+      const rect = event.currentTarget.getBoundingClientRect();
+      setShowReactionDetails({
+        messageId,
+        emoji,
+        reactions: reactionList,
+        position: {
+          x: rect.right + 8, // Position to the right of the button
+          y: rect.top
+        }
+      });
+    }
   };
 
   // Helper to clean up a P2P connection
@@ -612,7 +632,10 @@ function Chat({ roomType, user }) {
           <div
             ref={messagesContainerRef}
             className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 sm:py-4 space-y-2 custom-scrollbar pb-[100px] sm:pb-[100px] md:pb-[110px] lg:pb-[120px]"
-            onClick={() => setShowEmojiPicker(null)} // Close emoji picker when clicking outside
+            onClick={() => {
+              setShowEmojiPicker(null);
+              setShowReactionDetails(null);
+            }}
           >
             {messages.map((message, index) => {
               // Skip rendering if senderId is null
@@ -672,7 +695,12 @@ function Chat({ roomType, user }) {
                                   ? 'bg-white/20 border border-white/30'
                                   : 'bg-white/5 border border-white/10'
                               }`}
-                              onClick={() => handleReaction(message._id, emoji)}
+                              onClick={(e) => handleReaction(message._id, emoji)}
+                              onTouchStart={(e) => handleReactionDetailsToggle(message._id, emoji, reactionList, e)}
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                handleReactionDetailsToggle(message._id, emoji, reactionList, e);
+                              }}
                               title={reactionList.map(r => r.userId.userName || r.userId).join(', ')}
                             >
                               <span>{emoji}</span>
@@ -688,7 +716,6 @@ function Chat({ roomType, user }) {
                           className="absolute bottom-full left-0 mb-2 bg-black/90 backdrop-blur-sm border border-white/20 rounded-lg p-2 flex gap-2 z-50 shadow-xl"
                           onClick={(e) => e.stopPropagation()}
                           onMouseEnter={() => {
-                            // Clear any pending close timers when hovering over picker
                             if (hoverTimer) {
                               clearTimeout(hoverTimer);
                               setHoverTimer(null);
@@ -795,6 +822,58 @@ function Chat({ roomType, user }) {
             </form>
           </div>
         </div>
+
+        {/* Reaction Details Modal */}
+        {showReactionDetails && (
+          <>
+            {/* Invisible overlay to close on click outside */}
+            <div 
+              className="fixed inset-0 z-40"
+              onClick={() => setShowReactionDetails(null)}
+            />
+            
+            {/* Small popup */}
+            <div 
+              className="fixed z-50 bg-black/95 backdrop-blur-sm border border-white/30 rounded-lg p-3 shadow-xl min-w-[200px] max-w-[250px]"
+              style={{
+                left: `${Math.min(showReactionDetails.position.x, window.innerWidth - 260)}px`,
+                top: `${Math.max(10, Math.min(showReactionDetails.position.y, window.innerHeight - 200))}px`
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/20">
+                <span className="text-lg">{showReactionDetails.emoji}</span>
+                <span className="text-white/80 text-xs font-medium">
+                  {showReactionDetails.reactions.length}
+                </span>
+              </div>
+              
+              <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
+                {showReactionDetails.reactions.map((reaction, index) => (
+                  <div 
+                    key={index}
+                    className="flex items-center gap-2 py-1 px-1 rounded hover:bg-white/10 transition-colors"
+                  >
+                    <div 
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0"
+                      style={{ 
+                        backgroundColor: reaction.userId._id === user.id ? colors.userColor : '#64748b'
+                      }}
+                    >
+                      {(reaction.userId.userName || reaction.userId)?.[0]?.toUpperCase() || '?'}
+                    </div>
+                    <span className="text-white/90 text-xs truncate flex-1">
+                      {reaction.userId.userName || reaction.userId || 'Unknown'}
+                      {reaction.userId._id === user.id && (
+                        <span className="text-white/60 ml-1">(You)</span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
 
         <style jsx global>{`
           .text_scroll::-webkit-scrollbar {
