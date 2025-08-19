@@ -849,27 +849,35 @@ function Chat({ roomType, user }) {
               </div>
               
               <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
-                {showReactionDetails.reactions.map((reaction, index) => (
-                  <div 
-                    key={index}
-                    className="flex items-center gap-2 py-1 px-1 rounded hover:bg-white/10 transition-colors"
-                  >
+                {showReactionDetails.reactions.map((reaction, index) => {
+                  // Find the user's color from the messages
+                  const userColor = messages.find(msg => 
+                    msg.senderId._id === reaction.userId._id || msg.senderId._id === reaction.userId
+                  )?.senderId?.color || colors.userColor;
+
+                  return (
                     <div 
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0"
-                      style={{ 
-                        backgroundColor: reaction.userId._id === user.id ? colors.userColor : '#64748b'
-                      }}
+                      key={index}
+                      className="flex items-center gap-2 py-1 px-1 rounded hover:bg-white/10 transition-colors"
                     >
-                      {(reaction.userId.userName || reaction.userId)?.[0]?.toUpperCase() || '?'}
+                      <div 
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0"
+                        style={{ 
+                          backgroundColor: userColor
+                        }}
+                      >
+                        {(reaction.userId.userName || reaction.userId)?.[0]?.toUpperCase() || '?'
+                        }
+                      </div>
+                      <span className="text-white/90 text-xs truncate flex-1">
+                        {reaction.userId.userName || reaction.userId || 'Unknown'}
+                        {reaction.userId._id === user.id && (
+                          <span className="text-white/60 ml-1">(You)</span>
+                        )}
+                      </span>
                     </div>
-                    <span className="text-white/90 text-xs truncate flex-1">
-                      {reaction.userId.userName || reaction.userId || 'Unknown'}
-                      {reaction.userId._id === user.id && (
-                        <span className="text-white/60 ml-1">(You)</span>
-                      )}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </>
