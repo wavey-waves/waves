@@ -12,6 +12,8 @@ import {
 import Chat from "./components/Chat";
 import JoinRoom from "./components/JoinRoom";
 import CustomRoom from "./components/CustomRoom";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import axios from "axios";
 
 // Configure axios defaults
@@ -270,19 +272,22 @@ function App() {
   };
 
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Home onJoinRoom={handleJoinRoom} />} />
-        <Route 
-          path="/chat/:roomType" 
-          element={<ChatRoute />} 
-        />
-        <Route 
-          path="/chat/custom/:roomCode" 
-          element={<ChatRoute />} 
-        />
-      </Routes>
-    </Router>
+    <>
+      <ToastContainer position="bottom-right" autoClose={2500} theme="dark" />
+      <Router>
+        <Routes>
+          <Route path="/" element={<Home onJoinRoom={handleJoinRoom} />} />
+          <Route 
+            path="/chat/:roomType" 
+            element={<ChatRoute />} 
+          />
+          <Route 
+            path="/chat/custom/:roomCode" 
+            element={<ChatRoute />} 
+          />
+        </Routes>
+      </Router>
+    </>
   );
 }
 
