@@ -11,6 +11,7 @@ import {
 } from "react-router-dom";
 import Chat from "./components/Chat";
 import JoinRoom from "./components/JoinRoom";
+import CustomRoom from "./components/CustomRoom";
 import axios from "axios";
 
 // Configure axios defaults
@@ -21,6 +22,8 @@ function Home({ onJoinRoom }) {
   const location = useLocation();
   const [showJoinRoom, setShowJoinRoom] = useState(location.state?.showJoinRoom || false);
   const [selectedRoomType, setSelectedRoomType] = useState(location.state?.roomType || null);
+  const [showCustomRoom, setShowCustomRoom] = useState(false);
+  const [customRoomData, setCustomRoomData] = useState(null);
 
   // Clear location state after reading it
   useEffect(() => {
@@ -38,6 +41,20 @@ function Home({ onJoinRoom }) {
     onJoinRoom(userData, selectedRoomType);
     setShowJoinRoom(false);
     navigate(`/chat/${selectedRoomType}`, { state: { fromHome: true } });
+  };
+
+  const handleCustomRoomJoin = (roomData) => {
+    // Store custom room data and show join room component
+    setCustomRoomData(roomData);
+    setSelectedRoomType('custom');
+    setShowCustomRoom(false);
+    setShowJoinRoom(true);
+  };
+
+  const handleCustomJoinSuccess = (userData) => {
+    onJoinRoom(userData, 'custom');
+    setShowJoinRoom(false);
+    navigate(`/chat/custom/${customRoomData.code}`, { state: { fromHome: true, roomData: customRoomData } });
   };
 
   return (
@@ -134,15 +151,60 @@ function Home({ onJoinRoom }) {
                 </div>
               </div>
             </div>
+
+            <div 
+              className="relative group w-full max-w-xs transition duration-300 transform hover:scale-105 hover:-translate-y-2 hover:rotate-1 hover:shadow-2xl hover:cursor-pointer"
+              onClick={() => setShowCustomRoom(true)}
+            >
+              <div className="absolute inset-0.5 bg-gradient-to-r from-orange-600 to-red-600 rounded-3xl blur opacity-30 group-hover:opacity-80 transition duration-500 animated-gradient"></div>
+              <div className="relative bg-black/80 backdrop-blur-xl rounded-2xl p-6 sm:p-8 shadow-2xl border border-gray-800/50 space-y-6">
+                <div className="relative flex items-center gap-2">
+                  <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-orange-600 to-red-600 rounded-full">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="w-5 h-5 sm:w-6 sm:h-6 text-white"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                  </div>
+                  <p className="text-lg sm:text-xl font-bold text-white">
+                    Custom Room
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {showJoinRoom && (
         <JoinRoom 
-          onJoin={handleJoinSuccess} 
-          roomName={selectedRoomType === "global" ? "Global" : "Network"} 
+          onJoin={selectedRoomType === 'custom' ? handleCustomJoinSuccess : handleJoinSuccess} 
+          roomName={
+            selectedRoomType === "global" ? "Global" : 
+            selectedRoomType === "network" ? "Network" : 
+            selectedRoomType === "custom" ? `Custom ${customRoomData?.code}` : 
+            "Room"
+          } 
           onClose={() => setShowJoinRoom(false)}
+          isCustomRoom={selectedRoomType === 'custom'}
+          customRoomData={customRoomData}
+        />
+      )}
+
+      {showCustomRoom && (
+        <CustomRoom 
+          onJoin={handleCustomRoomJoin}
+          onClose={() => setShowCustomRoom(false)}
         />
       )}
     </>
@@ -150,7 +212,7 @@ function Home({ onJoinRoom }) {
 }
 
 function ChatRoute() {
-  const { roomType } = useParams();
+  const { roomType, roomCode } = useParams();
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const location = useLocation();
@@ -195,7 +257,7 @@ function ChatRoute() {
     return null; // or a loading spinner
   }
 
-  return user ? <Chat roomType={roomType} user={user} /> : null;
+  return user ? <Chat roomType={roomType} roomCode={roomCode} user={user} roomData={location.state?.roomData} /> : null;
 }
 
 function App() {
@@ -213,6 +275,10 @@ function App() {
         <Route path="/" element={<Home onJoinRoom={handleJoinRoom} />} />
         <Route 
           path="/chat/:roomType" 
+          element={<ChatRoute />} 
+        />
+        <Route 
+          path="/chat/custom/:roomCode" 
           element={<ChatRoute />} 
         />
       </Routes>

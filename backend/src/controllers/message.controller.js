@@ -6,12 +6,14 @@ const NO_OF_MESSAGES = 1000;
 export const getMessages = async (req, res) => {
   try {
     const roomName = req.params.roomName;
+    console.log(`[DEBUG] Getting messages for room: ${roomName}`);
     const messages = await Message
       .find({ room: roomName })
       .populate('senderId', 'userName color isAnonymous')
       .populate('reactions.userId', 'userName')
       .sort({ createdAt: 1 })
       .lean();
+    console.log(`[DEBUG] Found ${messages.length} messages for room ${roomName}`);
     res.status(200).json(messages);
   } catch (error) {
     console.log("Error in getMessages controller: ", error.message);
@@ -24,6 +26,8 @@ export const sendMessage = async (req, res) => {
     const {text, image, tempId} = req.body;
     const senderId = req.user._id;
     const roomName = req.params.roomName;
+
+    console.log(`[DEBUG] Sending message to room: ${roomName}, text: ${text}`);
 
     if (!text || text.trim() === '') {
       return res.status(400).json({ error: "Message text is required" });

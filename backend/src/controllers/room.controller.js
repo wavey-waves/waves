@@ -43,6 +43,68 @@ export const assignRoom = async (req, res) => {
   }
 }
 
+export const createRoom = async (req, res) => {
+  try {
+    const code = await Room.generateUniqueCode();
+    const roomName = `custom-${code}`;
+    
+    const room = await Room.create({
+      roomName,
+      code,
+      isCustomRoom: true,
+      createdByIp: getClientIp(req),
+      members: [req.user._id]
+    });
+
+    await room.populate('members', 'userName color isAnonymous');
+
+    res.json({
+      roomId: room._id,
+      roomName: room.roomName,
+      code: room.code,
+      memberCount: room.members.length,
+      members: room.members
+    });
+  } catch (error) {
+    console.log("Error in createRoom controller:", error.message);
+    res.status(500).json({message: "Failed to create room"});
+  }
+};
+
+export const joinRoom = async (req, res) => {
+  try {
+    const { code } = req.body;
+    
+    if (!code) {
+      return res.status(400).json({message: "Room code is required"});
+    }
+
+    const room = await Room.findOne({ code: code.toUpperCase() });
+    if (!room) {
+      return res.status(404).json({message: "Room not found"});
+    }
+
+    // Add user to room if not already a member
+    if (!room.members.includes(req.user._id)) {
+      room.members.push(req.user._id);
+      await room.save();
+    }
+
+    await room.populate('members', 'userName color isAnonymous');
+
+    res.json({
+      roomId: room._id,
+      roomName: room.roomName,
+      code: room.code,
+      memberCount: room.members.length,
+      members: room.members
+    });
+  } catch (error) {
+    console.log("Error in joinRoom controller:", error.message);
+    res.status(500).json({message: "Failed to join room"});
+  }
+};
+
 export const leaveRoom = async (req, res) => {
   try {
     const roomName = req.params.roomName;

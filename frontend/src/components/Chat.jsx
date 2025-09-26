@@ -18,7 +18,9 @@ const ICE_SERVERS = {
   ],
 };
 
-function Chat({ roomType, user }) {
+function Chat({ roomType, roomCode, user, roomData }) {
+  // Fix roomType detection for custom rooms
+  const actualRoomType = roomType || (roomCode ? 'custom' : 'global');
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [roomInfo, setRoomInfo] = useState(null);
@@ -39,7 +41,7 @@ function Chat({ roomType, user }) {
   const [showReactionDetails, setShowReactionDetails] = useState(null);
 
   // Common emojis for quick selection
-  const quickEmojis = ['👍', '❤️', '😂', '😮', '😢', '😡'];
+  const quickEmojis = ['👍', '❤️', '😂', '😮', '😢', '👎'];
 
   //Constants for message input
   const CHARACTER_LIMIT = 1000;
@@ -316,16 +318,34 @@ function Chat({ roomType, user }) {
 
     const setupSocketAndFetchData = async () => {
       try {
-        if (roomType === "network") {
+        if (actualRoomType === "network") {
           // Fetch room info for network rooms
           const roomResponse = await axios.get("/api/rooms/assign");
           setRoomInfo(roomResponse.data);
           currentRoom = roomResponse.data.roomName;
+        } else if (actualRoomType === "custom" && roomCode) {
+          // Handle custom rooms
+          setRoomInfo({
+            roomName: `custom-${roomCode}`,
+            code: roomCode,
+            ...(roomData || {})
+          });
+          currentRoom = `custom-${roomCode}`;
+        } else if (actualRoomType === "custom" && !roomCode) {
+          console.error("[ERROR] Custom room type but no room code provided");
+          currentRoom = "global-room";
         } else {
           currentRoom = "global-room";
         }
 
-        const endpoint = roomType === "global" ? "/api/messages/global-room" : `/api/messages/${currentRoom}`;
+        let endpoint;
+        if (actualRoomType === "global") {
+          endpoint = "/api/messages/global-room";
+        } else if (actualRoomType === "custom") {
+          endpoint = `/api/messages/custom-${roomCode}`;
+        } else {
+          endpoint = `/api/messages/${currentRoom}`;
+        }
         const response = await axios.get(endpoint);
         if (Array.isArray(response.data)) {
             response.data.forEach(msg => {
@@ -471,7 +491,7 @@ function Chat({ roomType, user }) {
       channels.clear();
       processedMessages.clear();
     };
-  }, [user, roomType]);
+  }, [user, actualRoomType, roomCode]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -522,7 +542,14 @@ function Chat({ roomType, user }) {
 
     // Always send to server for fallback and persistence
     try {
-      const roomName = roomType === "global" ? "global-room" : roomInfo?.roomName;
+      let roomName;
+      if (actualRoomType === "global") {
+        roomName = "global-room";
+      } else if (actualRoomType === "custom" && roomCode) {
+        roomName = `custom-${roomCode}`;
+      } else {
+        roomName = roomInfo?.roomName;
+      }
       if (!roomName) throw new Error("Room name not available");
       const endpoint = `/api/messages/send/${roomName}`;
 
@@ -557,23 +584,34 @@ function Chat({ roomType, user }) {
   };
 
   const getGradientColors = () => {
-    return roomType === "global" 
-      ? {
-          from: "from-violet-400 via-purple-700 to-indigo-500",
-          button: "from-violet-600 to-blue-600",
-          bg: "from-violet-600/5 via-transparent to-purple-600/5",
-          accent: "from-violet-300 via-purple-400 to-indigo-300",
-          border: "border-violet-500/20",
-          userColor: "#7c3aed"
-        }
-      : {
-          from: "from-emerald-400 via-teal-500 to-cyan-500",
-          button: "from-emerald-600 to-cyan-600",
-          bg: "from-emerald-600/5 via-transparent to-cyan-600/5",
-          accent: "from-emerald-300 via-teal-400 to-cyan-300",
-          border: "border-emerald-500/20",
-          userColor: "#10b981"
-        };
+    if (actualRoomType === "global") {
+      return {
+        from: "from-violet-400 via-purple-700 to-indigo-500",
+        button: "from-violet-600 to-blue-600",
+        bg: "from-violet-600/5 via-transparent to-purple-600/5",
+        accent: "from-violet-300 via-purple-400 to-indigo-300",
+        border: "border-violet-500/20",
+        userColor: "#7c3aed"
+      };
+    } else if (actualRoomType === "custom") {
+      return {
+        from: "from-rose-400 via-pink-500 to-fuchsia-500",
+        button: "from-rose-600 to-pink-600",
+        bg: "from-rose-600/5 via-transparent to-pink-600/5",
+        accent: "from-rose-300 via-pink-400 to-fuchsia-300",
+        border: "border-rose-500/20",
+        userColor: "#e11d48"
+      };
+    } else {
+      return {
+        from: "from-emerald-400 via-teal-500 to-cyan-500",
+        button: "from-emerald-600 to-cyan-600",
+        bg: "from-emerald-600/5 via-transparent to-cyan-600/5",
+        accent: "from-emerald-300 via-teal-400 to-cyan-300",
+        border: "border-emerald-500/20",
+        userColor: "#10b981"
+      };
+    }
   };
 
   const colors = getGradientColors();
@@ -601,14 +639,19 @@ function Chat({ roomType, user }) {
           <div className="flex-shrink-0 flex items-center justify-between p-2 sm:p-3 md:p-4 border-b border-white/10">
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
               <h1 className={`font text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r ${colors.from} bg-clip-text text-transparent`}>
-                {roomType === "global" ? "Global" : "Network"} room
+                {actualRoomType === "global" ? "Global" : actualRoomType === "custom" ? "Custom" : "Network"} room
               </h1>
               <span className={`text-xs sm:text-sm font-medium bg-gradient-to-r ${colors.accent} bg-clip-text text-transparent px-2 py-0.5 sm:py-1 rounded-full border ${colors.border} backdrop-blur-sm`}>
                 {user.username}
               </span>
-              {roomType === "network" && roomInfo && (
+              {actualRoomType === "network" && roomInfo && (
                 <span className={`text-xs sm:text-sm font-medium bg-gradient-to-r ${colors.accent} bg-clip-text text-transparent px-2 py-0.5 sm:py-1 rounded-full border ${colors.border} backdrop-blur-sm`}>
                   {roomInfo.roomName}
+                </span>
+              )}
+              {actualRoomType === "custom" && (
+                <span className={`text-xs sm:text-sm font-medium bg-gradient-to-r ${colors.accent} bg-clip-text text-transparent px-2 py-0.5 sm:py-1 rounded-full border ${colors.border} backdrop-blur-sm`}>
+                  Code: {roomCode}
                 </span>
               )}
             </div>

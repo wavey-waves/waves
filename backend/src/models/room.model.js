@@ -10,6 +10,13 @@ const roomSchema = new mongoose.Schema({
     unique: true,
     trim: true
   },
+  code: {
+    type: String,
+    unique: true,
+    sparse: true, // Allow null values but ensure uniqueness when present
+    uppercase: true,
+    length: 6
+  },
   members: [
     {
       type: mongoose.Schema.Types.ObjectId,
@@ -19,12 +26,30 @@ const roomSchema = new mongoose.Schema({
   createdByIp: {
     type: String,
   },
+  isCustomRoom: {
+    type: Boolean,
+    default: false
+  },
   expiresAt: {
     type: Date,
     default: () => new Date(Date.now() + MESSAGE_EXPIRY),
     index: {expires : 0}
   }
 }, {timestamps: true});
+
+// Generate unique room code
+roomSchema.statics.generateUniqueCode = async function() {
+  let code;
+  let exists = true;
+  
+  while (exists) {
+    code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const room = await this.findOne({ code });
+    exists = !!room;
+  }
+  
+  return code;
+};
 
 const Room = mongoose.model("Rooms", roomSchema);
 
