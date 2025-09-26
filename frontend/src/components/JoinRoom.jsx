@@ -66,10 +66,40 @@ const ROOM_THEMES = {
       '#ec4899', // Hot Pink
       '#f43f5e', // Rose
     ]
+  },
+  custom: {
+    // UI theme colors - Pink/Rose theme to match CustomRoom component
+    themeColors: {
+      from: "from-rose-400 via-pink-500 to-rose-500",
+      button: "from-rose-600 to-pink-600",
+      bg: "from-rose-600/5 via-transparent to-pink-600/5",
+      accent: "from-rose-300 via-pink-400 to-rose-300",
+      border: "border-rose-500/20",
+      hover: "hover:bg-rose-600/10",
+      active: "bg-rose-600"
+    },
+    // User colors - Pink/Rose variations
+    userColors: [
+      '#f43f5e', // Rose
+      '#ec4899', // Hot Pink
+      '#d946ef', // Fuchsia
+      '#e11d48', // Red-Rose
+      '#f97316', // Orange-Pink
+      '#fbbf24', // Warm Gold
+      '#f59e0b', // Amber
+      '#84cc16', // Lime Green
+      '#22c55e', // Green
+      '#10b981', // Emerald
+      '#06b6d4', // Cyan
+      '#3b82f6', // Blue
+      '#6366f1', // Indigo
+      '#8b5cf6', // Purple
+      '#a855f7', // Violet
+    ]
   }
 };
 
-function JoinRoom({ onJoin, roomName = "Global", onClose }) {
+function JoinRoom({ onJoin, roomName = "Global", onClose, isCustomRoom = false, customRoomData = null }) {
   const [joinType, setJoinType] = useState("anonymous");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -81,7 +111,12 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
   const [isLoading, setIsLoading] = useState(false);
 
   // Get theme colors based on room type
-  const themeColors = ROOM_THEMES[roomName.toLowerCase() === "global" ? "global" : "network"].themeColors;
+  const getThemeKey = () => {
+    if (isCustomRoom) return "custom";
+    return roomName.toLowerCase() === "global" ? "global" : "network";
+  };
+  
+  const themeColors = ROOM_THEMES[getThemeKey()].themeColors;
 
   const generateRandomName = () => {
     return uniqueNamesGenerator({
@@ -92,10 +127,11 @@ function JoinRoom({ onJoin, roomName = "Global", onClose }) {
   };
 
   const generateRandomColor = useCallback(() => {
-    const roomColors = ROOM_THEMES[roomName.toLowerCase() === "global" ? "global" : "network"].userColors;
+    const themeKey = getThemeKey();
+    const roomColors = ROOM_THEMES[themeKey].userColors;
     const randomIndex = Math.floor(Math.random() * roomColors.length);
     return roomColors[randomIndex];
-  }, [roomName]);
+  }, [roomName, isCustomRoom]);
 
   const handleGenerateNewName = useCallback(() => {
     const newName = generateRandomName();
