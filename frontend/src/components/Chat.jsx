@@ -34,14 +34,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
   const dataChannelsRef = useRef(new Map());
   const processedMessageIds = useRef(new Set());
 
-  // Reaction state
-  const [showEmojiPicker, setShowEmojiPicker] = useState(null);
-  const [longPressTimer, setLongPressTimer] = useState(null);
-  const [hoverTimer, setHoverTimer] = useState(null);
-  const [showReactionDetails, setShowReactionDetails] = useState(null);
 
-  // Common emojis for quick selection
-  const quickEmojis = ['👍', '❤️', '😂', '😮', '😢', '👎'];
 
   //Constants for message input
   const CHARACTER_LIMIT = 1000;
@@ -99,7 +92,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
     setMessages((prevMessages) => [...prevMessages, message]);
   };
 
-  // Helper to update a message (for reactions)
+  // Helper to update a message
   const updateMessage = (updatedMessage) => {
     setMessages(prevMessages => 
       prevMessages.map(msg => 
@@ -108,124 +101,9 @@ function Chat({ roomType, roomCode, user, roomData }) {
     );
   };
 
-  // Handle reaction to message
-  const handleReaction = async (messageId, emoji) => {
-    let rollbackReactions = null;
-    try {
-      // Optimistic update - immediately update the UI
-      setMessages(prevMessages =>
-        prevMessages.map(msg => {
-          if (msg._id === messageId) {
-            const prev = Array.isArray(msg.reactions) ? msg.reactions : [];
-            // Deep copy for rollback
-            rollbackReactions = JSON.parse(JSON.stringify(prev));
-            const newReactions = [...prev];
-            
-            // Check if user already reacted with this emoji
-            const existingReactionIndex = newReactions.findIndex(
-              reaction => (reaction.userId._id === user.id || reaction.userId === user.id) && reaction.emoji === emoji
-            );
 
-            if (existingReactionIndex > -1) {
-              // Remove the reaction if it exists
-              newReactions.splice(existingReactionIndex, 1);
-            } else {
-              // Remove any other reaction from this user first (one reaction per user)
-              const filteredReactions = newReactions.filter(
-                reaction => reaction.userId._id !== user.id && reaction.userId !== user.id
-              );
-              // Add the new reaction
-              filteredReactions.push({ 
-                userId: { _id: user.id, userName: user.username }, 
-                emoji,
-                createdAt: new Date()
-              });
-              newReactions.splice(0, newReactions.length, ...filteredReactions);
-            }
-            
-            return { ...msg, reactions: newReactions };
-          }
-          return msg;
-        })
-      );
 
-      setShowEmojiPicker(null);
-      
-      // Make the API call in the background
-      await axios.post(`/api/messages/${messageId}/react`, { emoji });
-      
-      // Note: The server will emit "message-reacted" which will update with the authoritative data
-      // This ensures consistency if there were any conflicts
-      
-    } catch (error) {
-      console.error("Error reacting to message:", error);
-      toast.error("Failed to react to message");
-      // Revert the optimistic update if the request failed
-      if (rollbackReactions) {
-        setMessages(prev =>
-          prev.map(m => m._id === messageId ? { ...m, reactions: rollbackReactions } : m)
-        );
-      }
-    }
-  };
 
-  // Long press handlers
-  const handleLongPressStart = (messageId) => {
-    const timer = setTimeout(() => {
-      setShowEmojiPicker(messageId);
-    }, 200);
-    setLongPressTimer(timer);
-  };
-
-  const handleLongPressEnd = () => {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      setLongPressTimer(null);
-    }
-  };
-
-  // Hover handlers
-  const handleMouseEnter = (messageId) => {
-    const timer = setTimeout(() => {
-      setShowEmojiPicker(messageId);
-    }, 100); // 100ms hover delay (reduced from 200ms)
-    setHoverTimer(timer);
-  };
-
-  const handleMouseLeave = () => {
-    if (hoverTimer) {
-      clearTimeout(hoverTimer);
-      setHoverTimer(null);
-    }
-    // Don't immediately close the picker on mouse leave
-    // Let it stay open so user can click on emojis
-  };
-
-  // Close emoji picker when clicking outside or after a delay
-  const handleEmojiPickerClose = () => {
-    setTimeout(() => {
-      setShowEmojiPicker(null);
-    }, 100); // 100ms delay (reduced from 100ms - keeping the same)
-  };
-
-  // Handle showing reaction details
-  const handleReactionDetailsToggle = (messageId, emoji, reactionList, event) => {
-    event.stopPropagation();
-    if (showReactionDetails?.messageId === messageId && showReactionDetails?.emoji === emoji) {
-      setShowReactionDetails(null);
-    } else {
-      const rect = event.currentTarget.getBoundingClientRect();
-      setShowReactionDetails({
-        messageId,
-        emoji,
-        reactions: reactionList,
-        position: {
-          x: rect.right + 8, // Position to the right of the button
-          y: rect.top
-        }
-      });
-    }
-  };
 
   // Helper to clean up a P2P connection
   const closePeerConnection = (socketId) => {
@@ -381,11 +259,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
             upsertMessage(message);
           });
 
-          // Handle message reactions
-          socketRef.current.on("message-reacted", (updatedMessage) => {
-            console.log("%c[SERVER] Message reaction received", "color: #f97316;");
-            updateMessage(updatedMessage);
-          });
+
 
           // Setup error handler
           socketRef.current.on("error", (error) => {
@@ -512,7 +386,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
     const messagePayload = {
       _id: crypto.randomUUID(),
       text: newMessage.trim(),
-      senderId: { _id: user.id, userName: user.username, color: getGradientColors().userColor },
+      senderId: { _id: user.id, userName: user.username, color: user.color },
       roomName: roomInfo?.roomName || "global-room",
       createdAt: new Date().toISOString()
     };
@@ -571,17 +445,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
     }
   };
 
-  // Group reactions by emoji
-  const groupReactions = (reactions) => {
-    const grouped = {};
-    reactions.forEach(reaction => {
-      if (!grouped[reaction.emoji]) {
-        grouped[reaction.emoji] = [];
-      }
-      grouped[reaction.emoji].push(reaction);
-    });
-    return grouped;
-  };
+
 
   const getGradientColors = () => {
     if (actualRoomType === "global") {
@@ -682,10 +546,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
           <div
             ref={messagesContainerRef}
             className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 sm:py-4 space-y-2 custom-scrollbar pb-[100px] sm:pb-[100px] md:pb-[110px] lg:pb-[120px]"
-            onClick={() => {
-              setShowEmojiPicker(null);
-              setShowReactionDetails(null);
-            }}
+
           >
             {messages.map((message, index) => {
               // Skip rendering if senderId is null
@@ -694,8 +555,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
               const isCurrentUser = message.senderId._id === user.id;
               const senderName = isCurrentUser ? user.username : message.senderId.userName;
               const senderColor = isCurrentUser ? colors.userColor : message.senderId.color;
-              const reactions = message.reactions || [];
-              const groupedReactions = groupReactions(reactions);
+
 
               return (
                 <div
@@ -718,15 +578,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
                           backgroundColor: `${senderColor}20`,
                           borderColor: `${senderColor}30`,
                         }}
-                        onMouseDown={() => handleLongPressStart(message._id)}
-                        onMouseUp={handleLongPressEnd}
-                        onMouseEnter={() => handleMouseEnter(message._id)}
-                        onMouseLeave={() => {
-                          handleLongPressEnd();
-                          handleMouseLeave();
-                        }}
-                        onTouchStart={() => handleLongPressStart(message._id)}
-                        onTouchEnd={handleLongPressEnd}
+
                         onClick={(e) => e.stopPropagation()}
                       >
                         <p className="text-white/90 text-sm sm:text-base break-words text-left">
@@ -734,56 +586,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
                         </p>
                       </div>
 
-                      {/* Reactions Display */}
-                      {Object.keys(groupedReactions).length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {Object.entries(groupedReactions).map(([emoji, reactionList]) => (
-                            <button
-                              key={emoji}
-                              className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-all hover:bg-white/10 ${
-                                reactionList.some(r => r.userId._id === user.id || r.userId === user.id)
-                                  ? 'bg-white/20 border border-white/30'
-                                  : 'bg-white/5 border border-white/10'
-                              }`}
-                              onClick={(e) => handleReaction(message._id, emoji)}
-                              onTouchStart={(e) => handleReactionDetailsToggle(message._id, emoji, reactionList, e)}
-                              onContextMenu={(e) => {
-                                e.preventDefault();
-                                handleReactionDetailsToggle(message._id, emoji, reactionList, e);
-                              }}
-                              title={reactionList.map(r => r.userId.userName || r.userId).join(', ')}
-                            >
-                              <span>{emoji}</span>
-                              <span className="text-white/80">{reactionList.length}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
 
-                      {/* Emoji Picker */}
-                      {showEmojiPicker === message._id && (
-                        <div 
-                          className="absolute bottom-full left-0 mb-2 bg-black/90 backdrop-blur-sm border border-white/20 rounded-lg p-2 flex gap-2 z-50 shadow-xl"
-                          onClick={(e) => e.stopPropagation()}
-                          onMouseEnter={() => {
-                            if (hoverTimer) {
-                              clearTimeout(hoverTimer);
-                              setHoverTimer(null);
-                            }
-                          }}
-                          onMouseLeave={handleEmojiPickerClose}
-                        >
-                          {quickEmojis.map(emoji => (
-                            <button
-                              key={emoji}
-                              className="text-xl hover:scale-125 transition-transform p-1 rounded hover:bg-white/10"
-                              onClick={() => handleReaction(message._id, emoji)}
-                            >
-                              {emoji}
-                            </button>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -873,65 +676,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
           </div>
         </div>
 
-        {/* Reaction Details Modal */}
-        {showReactionDetails && (
-          <>
-            {/* Invisible overlay to close on click outside */}
-            <div 
-              className="fixed inset-0 z-40"
-              onClick={() => setShowReactionDetails(null)}
-            />
-            
-            {/* Small popup */}
-            <div 
-              className="fixed z-50 bg-black/95 backdrop-blur-sm border border-white/30 rounded-lg p-3 shadow-xl min-w-[200px] max-w-[250px]"
-              style={{
-                left: `${Math.min(showReactionDetails.position.x, window.innerWidth - 260)}px`,
-                top: `${Math.max(10, Math.min(showReactionDetails.position.y, window.innerHeight - 200))}px`
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/20">
-                <span className="text-lg">{showReactionDetails.emoji}</span>
-                <span className="text-white/80 text-xs font-medium">
-                  {showReactionDetails.reactions.length}
-                </span>
-              </div>
-              
-              <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
-                {showReactionDetails.reactions.map((reaction, index) => {
-                  // Find the user's color from the messages
-                  const userColor = messages.find(msg => 
-                    msg.senderId._id === reaction.userId._id || msg.senderId._id === reaction.userId
-                  )?.senderId?.color || colors.userColor;
 
-                  return (
-                    <div 
-                      key={index}
-                      className="flex items-center gap-2 py-1 px-1 rounded hover:bg-white/10 transition-colors"
-                    >
-                      <div 
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0"
-                        style={{ 
-                          backgroundColor: userColor
-                        }}
-                      >
-                        {(reaction.userId.userName || reaction.userId)?.[0]?.toUpperCase() || '?'
-                        }
-                      </div>
-                      <span className="text-white/90 text-xs truncate flex-1">
-                        {reaction.userId.userName || reaction.userId || 'Unknown'}
-                        {reaction.userId._id === user.id && (
-                          <span className="text-white/60 ml-1">(You)</span>
-                        )}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </>
-        )}
 
         <style jsx global>{`
           .text_scroll::-webkit-scrollbar {
