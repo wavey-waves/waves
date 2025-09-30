@@ -1,6 +1,6 @@
 # Waves - Real-time Chat Application
 
-Waves is a modern, real-time chat application that offers both global and network-based chat rooms. Built with React, Node.js, and Socket.IO, it features a beautiful, responsive UI and seamless real-time communication.
+Waves is a modern, real-time chat application that offers global, network-based, and custom private chat rooms. Built with React, Node.js, and Socket.IO, it features a beautiful, responsive UI and seamless real-time communication.
 
 ## Features
 
@@ -16,6 +16,13 @@ Waves is a modern, real-time chat application that offers both global and networ
 - Real-time message updates within network rooms
 - Member list with user status
 
+### Custom Rooms
+- Create private rooms with unique 6-character codes
+- Share room links with native browser sharing or clipboard copy
+- Direct URL access to custom rooms
+- Join existing rooms using room codes
+- Room-specific message isolation
+
 ### User Authentication
 - Anonymous login with randomly generated names
 - Custom account creation
@@ -23,9 +30,11 @@ Waves is a modern, real-time chat application that offers both global and networ
 - Secure authentication with JWT
 
 ### UI/UX
-- Modern, responsive design
-- Beautiful gradient animations
+- Modern, responsive design with mobile-optimized interface
+- Beautiful gradient animations and background effects
 - Dark theme optimized for readability
+- Mobile info button for user details and room information
+- Native browser sharing integration with clipboard fallback
 - Real-time typing indicators
 - Message timestamps
 - Auto-scroll to latest messages
@@ -116,7 +125,13 @@ npm run dev
    - You'll be automatically assigned to a room based on your IP subnet
    - Chat with users on your network
 
-3. **User Account**
+3. **Custom Rooms**
+   - Click "Custom Room" on the home page
+   - Create a new room or join an existing one with a room code
+   - Share room links directly with friends using the share button
+   - Access rooms directly via URL: `/chat/custom/ROOMCODE`
+
+4. **User Account**
    - Create a custom account with username and password
    - Or use anonymous login with auto-generated username
    - Your color will be preserved across sessions
