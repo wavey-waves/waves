@@ -12,7 +12,7 @@ import {
 import Chat from "./components/Chat";
 import JoinRoom from "./components/JoinRoom";
 import CustomRoom from "./components/CustomRoom";
-import { ToastContainer } from "react-toastify";
+import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import axios from "axios";
 
@@ -214,9 +214,14 @@ function Home({ onJoinRoom }) {
 }
 
 function ChatRoute() {
-  const { roomType, roomCode } = useParams();
+  const { roomType: urlRoomType, roomCode } = useParams();
+  // Determine actual room type: if roomCode exists, it's a custom room
+  const roomType = roomCode ? 'custom' : urlRoomType;
+  console.log(`[DEBUG] URL params - urlRoomType: ${urlRoomType}, roomCode: ${roomCode}, resolved roomType: ${roomType}`);
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showJoinRoom, setShowJoinRoom] = useState(false);
+  const [roomData, setRoomData] = useState(null);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -224,9 +229,11 @@ function ChatRoute() {
     let isMounted = true;
 
     const checkAuth = async () => {
+      console.log(`[DEBUG] Checking auth for room: ${roomType}/${roomCode}`);
       try {
         // Try to get current user from session using the check endpoint
         const response = await axios.get('/api/auth/check');
+        console.log(`[DEBUG] User authenticated:`, response.data.userName);
         if (isMounted) {
           setUser({
             id: response.data._id,
@@ -236,13 +243,59 @@ function ChatRoute() {
           });
         }
       } catch (error) {
-        // If no valid session, redirect to home
+        console.log(`[DEBUG] No authentication found, handling room type: ${roomType}`);
+        // If no valid session, handle based on room type
         if (isMounted) {
-          navigate('/', { replace: true });
+          if (roomType === 'custom' && roomCode) {
+            console.log(`[DEBUG] Custom room detected, checking room: ${roomCode}`);
+            // For custom rooms, verify the room exists first, then show join room
+            checkCustomRoom();
+          } else if (roomType === 'global' || roomType === 'network') {
+            console.log(`[DEBUG] ${roomType} room detected, showing JoinRoom directly`);
+            // For global/network rooms, show join room directly
+            setShowJoinRoom(true);
+          } else {
+            console.log(`[DEBUG] Unknown room type, redirecting to home`);
+            // For unknown room types, redirect to home
+            navigate('/', { replace: true });
+          }
         }
       } finally {
         if (isMounted) {
           setIsLoading(false);
+        }
+      }
+    };
+
+    const checkCustomRoom = async () => {
+      console.log(`[DEBUG] Checking custom room: ${roomCode}`);
+      try {
+        const response = await axios.post('/api/rooms/join', { code: roomCode });
+        console.log(`[DEBUG] Room verification successful:`, response.data);
+        setRoomData({
+          roomId: response.data.roomId,
+          roomName: response.data.roomName,
+          code: response.data.code,
+          memberCount: response.data.memberCount
+        });
+        setShowJoinRoom(true);
+        console.log(`[DEBUG] Showing JoinRoom for custom room`);
+      } catch (error) {
+        console.log(`[DEBUG] Room verification failed:`, error.response?.status, error.message);
+        if (error.response?.status === 404) {
+          // Room doesn't exist, redirect to home with error message
+          toast.error("Room not found or has expired");
+          navigate('/', { replace: true });
+          console.log(`[DEBUG] Redirecting to home - room not found`);
+        } else {
+          // Network error or server error, still allow joining (room might exist)
+          console.warn("Could not verify room, but allowing join attempt:", error.message);
+          setRoomData({
+            code: roomCode,
+            roomName: `custom-${roomCode}`
+          });
+          setShowJoinRoom(true);
+          console.log(`[DEBUG] Showing JoinRoom despite verification error`);
         }
       }
     };
@@ -253,13 +306,46 @@ function ChatRoute() {
     return () => {
       isMounted = false;
     };
-  }, [navigate]);
+  }, [navigate, roomType, roomCode]);
+
+  const handleJoinSuccess = (userData) => {
+    setUser(userData);
+    setShowJoinRoom(false);
+  };
 
   if (isLoading) {
     return null; // or a loading spinner
   }
 
-  return user ? <Chat roomType={roomType} roomCode={roomCode} user={user} roomData={location.state?.roomData} /> : null;
+  if (showJoinRoom && !user) {
+    return (
+      <>
+        <link
+          href="https://fonts.googleapis.com/css2?family=Monoton&display=swap"
+          rel="stylesheet"
+        />
+        <div className="relative overflow-hidden align-middle flex flex-col items-center justify-center min-h-screen">
+          <div className="fixed inset-0 z-0">
+            <div className="absolute inset-0 bg-gradient-to-b from-slate-950 to-black"></div>
+            <div className="absolute inset-0 bg-gradient-to-tr from-blue-600/5 via-transparent to-purple-600/5"></div>
+          </div>
+          <JoinRoom 
+            onJoin={handleJoinSuccess} 
+            roomName={
+              roomType === 'custom' ? `Custom ${roomCode}` :
+              roomType === 'global' ? 'Global' :
+              roomType === 'network' ? 'Network' : 'Room'
+            }
+            onClose={() => navigate('/', { replace: true })}
+            isCustomRoom={roomType === 'custom'}
+            customRoomData={roomData}
+          />
+        </div>
+      </>
+    );
+  }
+
+  return user ? <Chat roomType={roomType} roomCode={roomCode} user={user} roomData={location.state?.roomData || roomData} /> : null;
 }
 
 function App() {

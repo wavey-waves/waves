@@ -42,6 +42,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
   const [lastSent, setLastSent] = useState(0);
   const THROTTLE_DELAY = 1000;
 
+
   // Add viewport height handling
   useEffect(() => {
     function setVh() {
@@ -514,9 +515,34 @@ function Chat({ roomType, roomCode, user, roomData }) {
                 </span>
               )}
               {actualRoomType === "custom" && (
-                <span className={`text-xs sm:text-sm font-medium bg-gradient-to-r ${colors.accent} bg-clip-text text-transparent px-2 py-0.5 sm:py-1 rounded-full border ${colors.border} backdrop-blur-sm`}>
+                <button
+                  onClick={() => {
+                    const roomUrl = `${window.location.origin}/chat/custom/${roomCode}`;
+                    if (navigator.share) {
+                      // Use native sharing if available
+                      navigator.share({
+                        title: 'Join my Waves chat room!',
+                        text: `Join me in a custom chat room on Waves`,
+                        url: roomUrl
+                      }).catch(err => {
+                        // Fallback to clipboard copy if sharing fails
+                        navigator.clipboard.writeText(`Join my Waves chat room: ${roomUrl}`);
+                        toast.success("Room link copied to clipboard!");
+                      });
+                    } else {
+                      // Fallback for browsers without native sharing
+                      navigator.clipboard.writeText(`Join my Waves chat room: ${roomUrl}`);
+                      toast.success("Room link copied to clipboard!");
+                    }
+                  }}
+                  className={`text-xs sm:text-sm font-medium bg-gradient-to-r ${colors.accent} bg-clip-text text-transparent px-2 py-0.5 sm:py-1 rounded-full border ${colors.border} backdrop-blur-sm hover:opacity-80 transition-opacity cursor-pointer flex items-center gap-1`}
+                  title="Click to share room with friends"
+                >
                   Code: {roomCode}
-                </span>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                  </svg>
+                </button>
               )}
             </div>
             <button
@@ -706,6 +732,8 @@ function Chat({ roomType, roomCode, user, roomData }) {
           }
         `}</style>
       </div>
+
+
     </>
   );
 }
