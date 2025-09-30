@@ -67,12 +67,19 @@ function Home({ onJoinRoom }) {
       />
       <div className="relative overflow-hidden align-middle flex flex-col items-center justify-center min-h-screen">
         <div className="relative z-10 w-full">
-          <div className="flex flex-col items-center mb-12 mt-8">
+          <div className="flex flex-col items-center mb-12 mt-8 relative">
+            {/* Subtle background glow */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-80 h-80 bg-gradient-to-r from-violet-600/10 via-purple-600/15 to-indigo-600/10 rounded-full blur-3xl"></div>
+            </div>
+            
+            {/* Main text with moderate effects */}
             <span
-              className="z-100 waves-font text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-extrabold tracking-tight bg-gradient-to-r from-violet-400 via-purple-700 to-indigo-500 bg-clip-text text-transparent select-none"
+              className="relative z-10 waves-font text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-extrabold tracking-tight bg-gradient-to-r from-violet-400 via-purple-700 to-indigo-500 bg-clip-text text-transparent select-none"
               style={{
-                textShadow: "0 0px 50px #6d28d9, 0 2px 0 #000",
+                textShadow: "0 0px 60px #6d28d9, 0 2px 0 #000",
                 WebkitTextStroke: "1px #a78bfa",
+                filter: "drop-shadow(0 0 15px rgba(139, 92, 246, 0.4))",
               }}
             >
               Waves
