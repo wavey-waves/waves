@@ -4,6 +4,7 @@ import { io } from "socket.io-client";
 import { toast, ToastContainer } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import "react-toastify/dist/ReactToastify.css";
+import iconImage from "../assets/icon.png";
 
 // Configure axios defaults
 axios.defaults.withCredentials = true;
@@ -24,6 +25,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [roomInfo, setRoomInfo] = useState(null);
+  const [showMobileInfo, setShowMobileInfo] = useState(false);
   const messagesContainerRef = useRef(null);
   const socketRef = useRef(null); 
   const textareaRef = useRef(null); 
@@ -488,6 +490,10 @@ function Chat({ roomType, roomCode, user, roomData }) {
         href="https://fonts.googleapis.com/css2?family=Gloria+Hallelujah&display=swap"
         rel="stylesheet"
       />
+      <link
+        href="https://fonts.googleapis.com/css2?family=Monoton&display=swap"
+        rel="stylesheet"
+      />
       <div className="relative h-screen flex flex-col bg-black">
         <div className="fixed inset-0 z-0">
           <div className="absolute inset-0 bg-gradient-to-b from-slate-950 to-black"></div>
@@ -501,72 +507,128 @@ function Chat({ roomType, roomCode, user, roomData }) {
 
         <div className="relative z-10 flex flex-col h-full">
           {/* Header - Fixed */}
-          <div className="flex-shrink-0 flex items-center justify-between p-2 sm:p-3 md:p-4 border-b border-white/10">
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-              <h1 className={`font text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r ${colors.from} bg-clip-text text-transparent`}>
-                {actualRoomType === "global" ? "Global" : actualRoomType === "custom" ? "Custom" : "Network"} room
-              </h1>
-              <span className={`text-xs sm:text-sm font-medium bg-gradient-to-r ${colors.accent} bg-clip-text text-transparent px-2 py-0.5 sm:py-1 rounded-full border ${colors.border} backdrop-blur-sm`}>
-                {user.username}
-              </span>
-              {actualRoomType === "network" && roomInfo && (
-                <span className={`text-xs sm:text-sm font-medium bg-gradient-to-r ${colors.accent} bg-clip-text text-transparent px-2 py-0.5 sm:py-1 rounded-full border ${colors.border} backdrop-blur-sm`}>
-                  {roomInfo.roomName}
-                </span>
-              )}
-              {actualRoomType === "custom" && (
+          <div className="flex-shrink-0 p-2 sm:p-3 md:p-4 border-b border-white/10">
+            <div className="flex items-center justify-between gap-2 sm:gap-3 flex-wrap">
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap min-w-0 flex-1">
                 <button
-                  onClick={() => {
-                    const roomUrl = `${window.location.origin}/chat/custom/${roomCode}`;
-                    if (navigator.share) {
-                      // Use native sharing if available
-                      navigator.share({
-                        title: 'Join my Waves chat room!',
-                        text: `Join me in a custom chat room on Waves`,
-                        url: roomUrl
-                      }).catch(err => {
-                        // Fallback to clipboard copy if sharing fails
+                  onClick={() => navigate('/')}
+                  className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 select-none flex-shrink-0 hover:opacity-80 transition-opacity cursor-pointer"
+                  aria-label="Go back to dashboard"
+                >
+                  <img
+                    src={iconImage}
+                    alt="Waves - Go back to dashboard"
+                    className="h-full w-full"
+                  />
+                </button>
+                <h1 className={`font text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r ${colors.from} bg-clip-text text-transparent flex-shrink-0`}>
+                  {actualRoomType === "global" ? "Global" : actualRoomType === "custom" ? "Custom" : "Network"} room
+                </h1>
+                {/* Desktop info - hidden on mobile */}
+                <span className={`hidden sm:inline text-xs sm:text-sm font-medium bg-gradient-to-r ${colors.accent} bg-clip-text text-transparent px-2 py-0.5 sm:py-1 rounded-full border ${colors.border} backdrop-blur-sm flex-shrink-0`}>
+                  {user.username}
+                </span>
+                {actualRoomType === "network" && roomInfo && (
+                  <span className={`hidden sm:inline text-xs sm:text-sm font-medium bg-gradient-to-r ${colors.accent} bg-clip-text text-transparent px-2 py-0.5 sm:py-1 rounded-full border ${colors.border} backdrop-blur-sm flex-shrink-0`}>
+                    {roomInfo.roomName}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {actualRoomType === "custom" && (
+                  <button
+                    onClick={() => {
+                      const roomUrl = `${window.location.origin}/chat/custom/${roomCode}`;
+                      if (navigator.share) {
+                        // Use native sharing if available
+                        navigator.share({
+                          title: 'Join my Waves chat room!',
+                          text: `Join me in a custom chat room on Waves`,
+                          url: roomUrl
+                        }).catch(err => {
+                          // Fallback to clipboard copy if sharing fails
+                          navigator.clipboard.writeText(`Join my Waves chat room: ${roomUrl}`);
+                          toast.success("Room link copied to clipboard!");
+                        });
+                      } else {
+                        // Fallback for browsers without native sharing
                         navigator.clipboard.writeText(`Join my Waves chat room: ${roomUrl}`);
                         toast.success("Room link copied to clipboard!");
-                      });
-                    } else {
-                      // Fallback for browsers without native sharing
-                      navigator.clipboard.writeText(`Join my Waves chat room: ${roomUrl}`);
-                      toast.success("Room link copied to clipboard!");
-                    }
-                  }}
-                  className={`text-xs sm:text-sm font-medium bg-gradient-to-r ${colors.accent} bg-clip-text text-transparent px-2 py-0.5 sm:py-1 rounded-full border ${colors.border} backdrop-blur-sm hover:opacity-80 transition-opacity cursor-pointer flex items-center gap-1`}
-                  title="Click to share room with friends"
+                      }
+                    }}
+                    className={`text-xs sm:text-sm font-medium bg-gradient-to-r ${colors.accent} bg-clip-text text-transparent px-2 py-0.5 sm:py-1 rounded-full border ${colors.border} backdrop-blur-sm hover:opacity-80 transition-opacity cursor-pointer flex items-center gap-1 flex-shrink-0`}
+                    title="Click to share room with friends"
+                  >
+                    <span className="hidden sm:inline">Code: {roomCode}</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                    </svg>
+                  </button>
+                )}
+                {/* Info button for mobile */}
+                <button
+                  onClick={() => setShowMobileInfo(true)}
+                  className={`sm:hidden p-1.5 rounded-lg bg-gradient-to-r ${colors.button} hover:opacity-90 transition-opacity text-white flex items-center border ${colors.border} backdrop-blur-sm flex-shrink-0`}
+                  aria-label="Show room info"
                 >
-                  Code: {roomCode}
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4 ml-1 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </button>
-              )}
+              </div>
             </div>
-            <button
-              onClick={() => navigate('/')}
-              className={`p-2 rounded-lg bg-gradient-to-r ${colors.button} hover:opacity-90 transition-opacity text-white flex items-center gap-1.5 border ${colors.border} backdrop-blur-sm`}
-              aria-label="Go back to home"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                />
-              </svg>
-              <span className="hidden sm:inline font-medium">Back</span>
-            </button>
           </div>
+
+          {/* Mobile Info Modal */}
+          {showMobileInfo && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowMobileInfo(false)}>
+              <div className={`bg-gradient-to-br ${colors.cardBg} border ${colors.border} rounded-2xl p-6 max-w-sm w-full backdrop-blur-md shadow-2xl`} onClick={(e) => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className={`text-lg font-bold bg-gradient-to-r ${colors.from} bg-clip-text text-transparent`}>
+                    Room Info
+                  </h2>
+                  <button
+                    onClick={() => setShowMobileInfo(false)}
+                    className={`p-1 rounded-lg hover:bg-white/10 transition-colors text-white`}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-white/70 text-sm">Room Type:</span>
+                    <span className={`text-sm font-medium bg-gradient-to-r ${colors.accent} bg-clip-text text-transparent`}>
+                      {actualRoomType === "global" ? "Global" : actualRoomType === "custom" ? "Custom" : "Network"} room
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white/70 text-sm">Username:</span>
+                    <span className={`text-sm font-medium bg-gradient-to-r ${colors.accent} bg-clip-text text-transparent px-2 py-1 rounded-full border ${colors.border} backdrop-blur-sm`}>
+                      {user.username}
+                    </span>
+                  </div>
+                  {actualRoomType === "network" && roomInfo && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-white/70 text-sm">Network:</span>
+                      <span className={`text-sm font-medium bg-gradient-to-r ${colors.accent} bg-clip-text text-transparent px-2 py-1 rounded-full border ${colors.border} backdrop-blur-sm`}>
+                        {roomInfo.roomName}
+                      </span>
+                    </div>
+                  )}
+                  {actualRoomType === "custom" && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-white/70 text-sm">Room Code:</span>
+                      <span className={`text-sm font-medium bg-gradient-to-r ${colors.accent} bg-clip-text text-transparent px-2 py-1 rounded-full border ${colors.border} backdrop-blur-sm`}>
+                        {roomCode}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Messages Area - Scrollable */}
           <div
@@ -726,6 +788,9 @@ function Chat({ roomType, roomCode, user, roomData }) {
             font-family: "Gloria Hallelujah", cursive;
             font-weight: 400;
             font-style: normal;
+          }
+          .waves-font {
+            font-family: "Monoton", cursive;
           }
           .h-screen {
             height: calc(var(--vh, 1vh) * 100);
