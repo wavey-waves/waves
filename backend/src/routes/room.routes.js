@@ -6,8 +6,8 @@ import { assignRoom, leaveRoom, createRoom, joinRoom } from "../controllers/room
 const router = express.Router();
 
 router.get('/assign', protectedRoute, assignRoom);
-router.post('/create', protectedRoute, createRoom);
-router.post('/join', protectedRoute, joinRoom);
+router.post('/create', createRoom);
+router.post('/join', joinRoom);
 router.post('/leave/:roomName', protectedRoute, leaveRoom);
 
 export default router;

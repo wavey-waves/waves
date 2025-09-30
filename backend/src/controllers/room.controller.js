@@ -53,17 +53,15 @@ export const createRoom = async (req, res) => {
       code,
       isCustomRoom: true,
       createdByIp: getClientIp(req),
-      members: [req.user._id]
+      members: [] // Empty initially, users will be added when they authenticate and join
     });
-
-    await room.populate('members', 'userName color isAnonymous');
 
     res.json({
       roomId: room._id,
       roomName: room.roomName,
       code: room.code,
-      memberCount: room.members.length,
-      members: room.members
+      memberCount: 0,
+      members: []
     });
   } catch (error) {
     console.log("Error in createRoom controller:", error.message);
@@ -84,20 +82,13 @@ export const joinRoom = async (req, res) => {
       return res.status(404).json({message: "Room not found"});
     }
 
-    // Add user to room if not already a member
-    if (!room.members.includes(req.user._id)) {
-      room.members.push(req.user._id);
-      await room.save();
-    }
-
-    await room.populate('members', 'userName color isAnonymous');
-
+    // Just return room info, don't try to add user since they're not authenticated yet
     res.json({
       roomId: room._id,
       roomName: room.roomName,
       code: room.code,
       memberCount: room.members.length,
-      members: room.members
+      members: [] // Don't expose member details for privacy
     });
   } catch (error) {
     console.log("Error in joinRoom controller:", error.message);
