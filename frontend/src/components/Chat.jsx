@@ -386,9 +386,19 @@ function Chat({ roomType, roomCode, user, roomData }) {
       return;
     }
 
+    // Store the message text before clearing
+    const messageText = newMessage.trim();
+    
+    // Clear input immediately after validation
+    setNewMessage("");
+    setLastSent(now);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "40px";
+    }
+
     const messagePayload = {
       _id: crypto.randomUUID(),
-      text: newMessage.trim(),
+      text: messageText,
       senderId: { _id: user.id, userName: user.username, color: user.color },
       roomName: roomInfo?.roomName || "global-room",
       createdAt: new Date().toISOString()
@@ -432,19 +442,13 @@ function Chat({ roomType, roomCode, user, roomData }) {
 
       // 🔽 Add a 'p2pSent' flag to the server request
       await axios.post(endpoint, {
-        text: messagePayload.text,
+        text: messageText,
         tempId: messagePayload._id,
         p2pSent: wasSentByP2P
       });
     } catch (error) {
       toast.error("Failed to send message to server.");
       console.error("Server send error:", error);
-    }
-
-    setNewMessage("");
-    setLastSent(now);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "40px";
     }
   };
 
