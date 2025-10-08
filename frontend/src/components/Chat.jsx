@@ -70,6 +70,13 @@ function Chat({ roomType, roomCode, user, roomData }) {
     scrollToBottom();
   }, [messages]);
 
+  // Auto-focus the input box when component loads
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [user, roomData]); // Focus when user and room data are ready
+
   // Helper to add a message to state, preventing duplicates
   const addMessage = (message) => {
     // Ignore if the message is invalid
