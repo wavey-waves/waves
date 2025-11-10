@@ -74,7 +74,7 @@ cd frontend
 npm run dev
 ```
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 ### Frontend
 - React (Vite)
@@ -391,7 +391,7 @@ Desktop Features:
 - Native sharing: Web Share API with clipboard fallback
 ```
 
-## 🔄 REAL-TIME COMMUNICATION
+##  REAL-TIME COMMUNICATION
 
 ### **Socket.IO Event Flow**
 ```

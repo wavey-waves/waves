@@ -29,7 +29,7 @@ function Documentation({ isOpen, onClose }) {
 
         {/* Content */}
         <div 
-          className="overflow-y-auto max-h-[calc(90vh-80px)] px-6 py-6 space-y-6 text-gray-200"
+          className="overflow-y-auto max-h-[calc(90vh-80px)] px-6 py-6 space-y-6 text-gray-200 text-left"
           style={{
             scrollbarWidth: 'thin',
             scrollbarColor: '#8b5cf6 #1e293b'
@@ -56,8 +56,8 @@ function Documentation({ isOpen, onClose }) {
           <div className="space-y-3">
             <h3 className="text-xl font-bold text-white">Understanding Peer-to-Peer (P2P) Messaging in Waves</h3>
             <p className="leading-relaxed">
-              Waves uses advanced <span className="text-violet-400 font-semibold">Peer-to-Peer (P2P) technology</span> to enable real-time messaging, 
-              making your chat experience ultra-fast and reliable—even in situations where the internet is extremely slow or almost unavailable.
+              Waves uses advanced <span className="text-violet-400 font-semibold">WebRTC technology</span> with <span className="text-purple-400 font-semibold">Data Channels</span> to enable real-time peer-to-peer messaging,
+              making your chat experience ultra-fast and reliable—even in situations where the internet is extremely slow or unreliable.
             </p>
           </div>
 
@@ -73,8 +73,8 @@ function Documentation({ isOpen, onClose }) {
                   1
                 </div>
                 <div>
-                  <p className="font-semibold text-violet-400">Direct Connection:</p>
-                  <p className="text-gray-300">When you join a chat room on Waves, your device tries to connect directly to other users' devices using P2P technology via WebRTC.</p>
+                  <p className="font-semibold text-violet-400">WebRTC Connection Establishment:</p>
+                  <p className="text-gray-300">When you join a chat room, Waves uses Socket.IO signaling to discover other users, then establishes direct WebRTC peer connections with ICE servers for NAT traversal.</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -82,8 +82,8 @@ function Documentation({ isOpen, onClose }) {
                   2
                 </div>
                 <div>
-                  <p className="font-semibold text-emerald-400">Low or Nearly No Internet? No Problem!</p>
-                  <p className="text-gray-300">If you and other users are connected to the same local network or WiFi router, your messages are sent seamlessly—even when your internet connection is very slow (as low as 1kbps) or almost down.</p>
+                  <p className="font-semibold text-emerald-400">Local Network Priority:</p>
+                  <p className="text-gray-300">If you and other users are on the same local network (WiFi router), messages flow directly through WebRTC Data Channels—even with poor internet connectivity.</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -91,8 +91,8 @@ function Documentation({ isOpen, onClose }) {
                   3
                 </div>
                 <div>
-                  <p className="font-semibold text-orange-400">Fallback for Robustness:</p>
-                  <p className="text-gray-300">If a direct P2P connection isn't possible (because devices are on different networks), Waves automatically switches to using its server as a relay so your messages always get delivered.</p>
+                  <p className="font-semibold text-orange-400">Automatic Server Fallback:</p>
+                  <p className="text-gray-300">If direct P2P connection fails after 10 seconds (due to firewalls, different networks, etc.), Waves seamlessly switches to server relay via Socket.IO for reliable delivery.</p>
                 </div>
               </div>
             </div>
@@ -108,19 +108,17 @@ function Documentation({ isOpen, onClose }) {
             <div className="bg-slate-800/50 rounded-lg p-4 border border-orange-500/20">
               <p className="font-semibold text-orange-400 mb-2">Does Waves Work Completely Without Internet?</p>
               <p className="text-sm text-gray-300 mb-3">
-                <span className="text-red-400 font-semibold">No.</span> Waves needs some level of internet connectivity—at a minimum, 
-                enough for devices to discover each other and set up the P2P links, and to use fallback relaying if P2P is not possible.
+                <span className="text-red-400 font-semibold">No.</span> Waves requires initial internet connectivity for Socket.IO signaling to discover users and establish WebRTC connections.
+                However, once P2P links are established, communication can continue even with minimal internet.
               </p>
               <ul className="space-y-2 text-sm text-gray-300 ml-4">
                 <li className="flex items-start gap-2">
                   <span className="text-violet-400 mt-1">•</span>
-                  <span><span className="font-semibold text-white">When Connected to the Same Router:</span> Even if your internet speed drops to almost zero, 
-                  as long as you're all connected to the same WiFi router, messages are sent directly between devices.</span>
+                  <span><span className="font-semibold text-white">Same Local Network:</span> Messages flow directly via WebRTC Data Channels, working reliably even with poor internet connectivity.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-violet-400 mt-1">•</span>
-                  <span><span className="font-semibold text-white">No Router Connection:</span> If you aren't connected to the same local network, 
-                  the app will try to use the internet (server relay) for communication.</span>
+                  <span><span className="font-semibold text-white">Different Networks:</span> Requires stable internet for server relay, but still provides fast, reliable messaging.</span>
                 </li>
               </ul>
             </div>
@@ -134,7 +132,6 @@ function Documentation({ isOpen, onClose }) {
             </div>
           </div>
 
-          {/* When Can You Use P2P */}
           <div className="bg-gradient-to-br from-violet-500/10 to-purple-500/10 rounded-xl p-5 border border-violet-500/30 space-y-4">
             <h4 className="text-lg font-semibold text-white flex items-center gap-2">
               <span className="w-2 h-2 bg-violet-500 rounded-full"></span>
@@ -143,29 +140,37 @@ function Documentation({ isOpen, onClose }) {
             
             <div className="space-y-3 text-sm">
               <div>
-                <p className="font-semibold text-violet-400 mb-2">✅ Best Case for P2P:</p>
+                <p className="font-semibold text-violet-400 mb-2">Optimal P2P Conditions:</p>
                 <ul className="space-y-1 text-gray-300 ml-4">
                   <li className="flex items-start gap-2">
                     <span className="text-violet-400">•</span>
-                    <span>All users are on the same WiFi network/router (e.g., home, school, office).</span>
+                    <span>All users connected to the same WiFi network/router (home, office, school).</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-violet-400">•</span>
-                    <span>Internet speed doesn't matter—the messages travel directly and instantly.</span>
+                    <span>Messages travel directly via WebRTC Data Channels with minimal latency.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-violet-400">•</span>
+                    <span>Works reliably even with poor internet connectivity once connections are established.</span>
                   </li>
                 </ul>
               </div>
 
               <div>
-                <p className="font-semibold text-orange-400 mb-2">🔄 Fallback to Server Relay:</p>
+                <p className="font-semibold text-orange-400 mb-2">Server Relay Fallback:</p>
                 <ul className="space-y-1 text-gray-300 ml-4">
                   <li className="flex items-start gap-2">
                     <span className="text-orange-400">•</span>
-                    <span>If your devices can't establish direct connections (different networks, firewalls, etc.), Waves will use the server.</span>
+                    <span>If direct WebRTC connections fail (firewalls, different networks, NAT issues).</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-orange-400">•</span>
-                    <span>You still get fast, reliable messaging, but it may depend on your internet speed.</span>
+                    <span>Waves automatically switches to Socket.IO server relay after 10-second timeout.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-orange-400">•</span>
+                    <span>Still provides fast, reliable messaging but depends on internet stability.</span>
                   </li>
                 </ul>
               </div>
@@ -180,16 +185,20 @@ function Documentation({ isOpen, onClose }) {
             </h4>
             <ul className="space-y-2 text-sm text-gray-300">
               <li className="flex items-start gap-3">
-                <span className="text-violet-400 text-lg">⚡</span>
-                <span><span className="font-semibold text-white">Ultra-Fast Messaging:</span> Direct messages between users on the same local network, even if the internet is extremely slow.</span>
+                <span className="text-violet-400 text-lg">•</span>
+                <span><span className="font-semibold text-white">Ultra-Fast Messaging:</span> Direct WebRTC Data Channel connections on local networks provide instant message delivery.</span>
               </li>
               <li className="flex items-start gap-3">
-                <span className="text-emerald-400 text-lg">🔗</span>
-                <span><span className="font-semibold text-white">Always Connected:</span> Messages are seamless and reliable—Waves automatically chooses the best route.</span>
+                <span className="text-emerald-400 text-lg">•</span>
+                <span><span className="font-semibold text-white">Seamless Fallback:</span> Automatic switching between P2P and server relay ensures messages always get delivered.</span>
               </li>
               <li className="flex items-start gap-3">
-                <span className="text-orange-400 text-lg">📡</span>
-                <span><span className="font-semibold text-white">No True "Offline" Messaging:</span> Waves is not a purely offline app; connecting to a router is necessary for discovering other users and establishing connections.</span>
+                <span className="text-orange-400 text-lg">•</span>
+                <span><span className="font-semibold text-white">Secure & Private:</span> Messages are automatically deleted after 7 days, with JWT authentication, message deduplication, and end-to-end security.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="text-pink-400 text-lg">•</span>
+                <span><span className="font-semibold text-white">Network Aware:</span> Smart room assignment and connection optimization based on your network environment.</span>
               </li>
             </ul>
           </div>
@@ -204,10 +213,15 @@ function Documentation({ isOpen, onClose }) {
               </svg>
               Summary
             </h4>
+            <p className="text-sm text-gray-200 leading-relaxed mb-3">
+              Waves combines <span className="text-violet-400 font-semibold">WebRTC P2P technology</span> with intelligent fallback mechanisms to provide 
+              <span className="text-emerald-400 font-semibold"> ultra-fast messaging</span> on local networks while ensuring 
+              <span className="text-orange-400 font-semibold"> reliable delivery</span> across all network conditions.
+            </p>
             <p className="text-sm text-gray-200 leading-relaxed">
-              Waves' P2P messaging is optimized for local network connections—your messages remain <span className="text-violet-400 font-semibold">lightning-fast</span> even 
-              if the internet nearly stops working, as long as you're on the same router. <span className="text-white font-semibold">Some internet is always needed</span> for 
-              setup and fallback routing.
+              <span className="text-white font-semibold">Initial internet connectivity</span> is required for Socket.IO signaling and connection establishment, 
+              but once WebRTC Data Channels are established, communication remains <span className="text-violet-400 font-semibold">fast and resilient </span> 
+              even with poor internet conditions.
             </p>
           </div>
         </div>
