@@ -12,6 +12,7 @@ import {
 import Chat from "./components/Chat";
 import JoinRoom from "./components/JoinRoom";
 import CustomRoom from "./components/CustomRoom";
+import Documentation from "./components/Documentation";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import axios from "axios";
@@ -26,6 +27,7 @@ function Home({ onJoinRoom }) {
   const [selectedRoomType, setSelectedRoomType] = useState(location.state?.roomType || null);
   const [showCustomRoom, setShowCustomRoom] = useState(false);
   const [customRoomData, setCustomRoomData] = useState(null);
+  const [showDocumentation, setShowDocumentation] = useState(false);
 
   // Clear location state after reading it
   useEffect(() => {
@@ -66,6 +68,24 @@ function Home({ onJoinRoom }) {
         rel="stylesheet"
       />
       <div className="relative overflow-hidden align-middle flex flex-col items-center justify-center min-h-screen">
+        {/* Documentation Button - Top Right */}
+        <button
+          onClick={() => setShowDocumentation(true)}
+          className="fixed top-6 right-6 z-50 group"
+          aria-label="Open Documentation"
+        >
+          <div className="relative">
+            <div className="absolute inset-0 bg-gradient-to-r from-violet-600 to-purple-600 rounded-full blur opacity-50 group-hover:opacity-100 transition duration-300"></div>
+            <div className="relative bg-gradient-to-r from-violet-600 to-purple-600 text-white px-4 py-2 rounded-full flex items-center gap-2 shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+              </svg>
+              <span className="font-semibold text-sm">Docs</span>
+            </div>
+          </div>
+        </button>
+
         <div className="relative z-10 w-full">
           <div className="flex flex-col items-center mb-12 mt-8 relative">
             {/* Subtle background glow */}
@@ -216,6 +236,12 @@ function Home({ onJoinRoom }) {
           onClose={() => setShowCustomRoom(false)}
         />
       )}
+
+      {/* Documentation Modal */}
+      <Documentation 
+        isOpen={showDocumentation} 
+        onClose={() => setShowDocumentation(false)} 
+      />
     </>
   );
 }
