@@ -10,7 +10,15 @@ export const getMessages = async (req, res) => {
     const messages = await Message
       .find({ room: roomName })
       .populate('senderId', 'userName color isAnonymous')
+      .populate('replyTo', 'text senderId')
       .populate('reactions.userId', 'userName')
+      .populate({
+        path: 'replyTo',
+        populate: {
+          path: 'senderId',
+          select: 'userName color isAnonymous'
+        }
+      })
       .sort({ createdAt: 1 })
       .lean();
     console.log(`[DEBUG] Found ${messages.length} messages for room ${roomName}`);
@@ -23,20 +31,38 @@ export const getMessages = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
   try {
-    const {text, image, tempId} = req.body;
+    const {text, image, tempId, replyTo} = req.body;
     const senderId = req.user._id;
     const roomName = req.params.roomName;
 
-    console.log(`[DEBUG] Sending message to room: ${roomName}, text: ${text}`);
+    console.log(`[DEBUG] Sending message to room: ${roomName}, text: ${text}, replyTo: ${replyTo}`);
 
     if (!text || text.trim() === '') {
       return res.status(400).json({ error: "Message text is required" });
+    }
+
+    // Validate replyTo if provided
+    if (replyTo) {
+      // Check if replyTo is a valid MongoDB ObjectId (24 hex characters)
+      const isValidObjectId = /^[a-fA-F0-9]{24}$/.test(replyTo);
+      if (!isValidObjectId) {
+        return res.status(400).json({ error: "Invalid replyTo ID format" });
+      }
+
+      const repliedMessage = await Message.findById(replyTo);
+      if (!repliedMessage) {
+        return res.status(400).json({ error: "Replied message not found" });
+      }
+      if (repliedMessage.room !== roomName) {
+        return res.status(400).json({ error: "Cannot reply to message from different room" });
+      }
     }
 
     const newMessage = new Message({
       senderId,
       text: text.trim(),
       room: roomName,
+      replyTo: replyTo || null,
       reactions: []
     });
 
@@ -45,7 +71,15 @@ export const sendMessage = async (req, res) => {
     // Populate the sender information
     const populated = await Message.findById(newMessage._id)
       .populate('senderId', 'userName color isAnonymous')
+      .populate('replyTo', 'text senderId')
       .populate('reactions.userId', 'userName')
+      .populate({
+        path: 'replyTo',
+        populate: {
+          path: 'senderId',
+          select: 'userName color isAnonymous'
+        }
+      })
       .lean();
 
     const payload = {...populated, tempId};    
@@ -97,7 +131,15 @@ export const reactToMessage = async (req, res) => {
     // Populate and send the updated message
     const updatedMessage = await Message.findById(id)
       .populate('senderId', 'userName color isAnonymous')
+      .populate('replyTo', 'text senderId')
       .populate('reactions.userId', 'userName')
+      .populate({
+        path: 'replyTo',
+        populate: {
+          path: 'senderId',
+          select: 'userName color isAnonymous'
+        }
+      })
       .lean();
 
     // Emit to all users in the room
