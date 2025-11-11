@@ -24,6 +24,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
   const actualRoomType = roomType || (roomCode ? 'custom' : 'global');
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
+  const [replyToId, setReplyToId] = useState(null);
   const [roomInfo, setRoomInfo] = useState(null);
   const [showMobileInfo, setShowMobileInfo] = useState(false);
   const messagesContainerRef = useRef(null);
@@ -58,17 +59,50 @@ function Chat({ roomType, roomCode, user, roomData }) {
     return () => window.removeEventListener("resize", setVh);
   }, []);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = (behavior = 'auto') => {
     if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop =
-        messagesContainerRef.current.scrollHeight;
+      const container = messagesContainerRef.current;
+      const lastMessage = container.querySelector('[data-message-id]:last-child');
+      if (lastMessage) {
+        // Get the position of the last message relative to the container
+        const containerRect = container.getBoundingClientRect();
+        const lastMessageRect = lastMessage.getBoundingClientRect();
+        const paddingBottom = replyToId ? 220 : 120;
+        
+        // Calculate scroll position to show last message at bottom of visible area (above padding)
+        const currentScrollTop = container.scrollTop;
+        const messageTop = lastMessageRect.top - containerRect.top + currentScrollTop;
+        const targetScrollTop = messageTop - (container.clientHeight - paddingBottom) + lastMessageRect.height;
+        
+        container.scrollTo({
+          top: Math.max(0, targetScrollTop),
+          behavior
+        });
+      } else {
+        container.scrollTo({
+          top: container.scrollHeight - container.clientHeight,
+          behavior
+        });
+      }
     }
   };
 
   // Scroll to bottom when messages change
   useEffect(() => {
-    scrollToBottom();
+    setTimeout(() => {
+      scrollToBottom();
+    }, 50);
   }, [messages]);
+
+  // Scroll when reply state changes to keep messages visible
+  useEffect(() => {
+    if (replyToId) {
+      // Use longer timeout to account for padding transition
+      setTimeout(() => {
+        scrollToBottom('smooth');
+      }, 350);
+    }
+  }, [replyToId]);
 
   // Auto-focus the input box when component loads
   useEffect(() => {
@@ -121,6 +155,101 @@ function Chat({ roomType, roomCode, user, roomData }) {
     peerConnectionsRef.current.delete(socketId);
     dataChannelsRef.current.delete(socketId);
     console.log(`Closed P2P connection to ${socketId}`);
+  };
+
+  // Reply functionality
+  const handleReply = (message) => {
+    // Check if the message has a valid MongoDB ObjectId (24 hex characters)
+    const isValidObjectId = /^[a-fA-F0-9]{24}$/.test(message._id);
+    if (!isValidObjectId) {
+      toast.error("Cannot reply to message that hasn't been confirmed yet");
+      return;
+    }
+
+    setReplyToId(message._id);
+    // Scroll to bottom after setting reply state with smooth behavior
+    setTimeout(() => {
+      scrollToBottom('smooth');
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }, 350);
+  };
+
+  // Mobile swipe to reply functionality
+  const [swipingMessage, setSwipingMessage] = useState(null);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const SWIPE_THRESHOLD = 80; // Minimum swipe distance to trigger reply
+  const SWIPE_VELOCITY_THRESHOLD = 0.3; // Minimum velocity for swipe
+
+  // Add non-passive touch event listeners
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleTouchMove = (e) => {
+      if (!swipingMessage) return;
+
+      const touchX = e.touches[0].clientX;
+      const touchY = e.touches[0].clientY;
+      const deltaX = touchX - touchStartX.current;
+      const deltaY = Math.abs(touchY - touchStartY.current);
+
+      // Only allow horizontal swipes (limit vertical movement)
+      if (deltaY < 30 && deltaX > 10) {
+        e.preventDefault(); // Now this will work with non-passive listener
+        setSwipeOffset(Math.max(0, deltaX));
+      } else if (deltaY > 50) {
+        // Cancel swipe if too much vertical movement
+        setSwipingMessage(null);
+        setSwipeOffset(0);
+      }
+    };
+
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+
+    return () => {
+      container.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, [swipingMessage]);
+
+  const handleTouchStart = (e, message) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    setSwipingMessage(message._id);
+    setSwipeOffset(0);
+  };
+
+  const handleTouchEnd = (e, message) => {
+    if (!swipingMessage) return;
+
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const deltaX = touchEndX - touchStartX.current;
+    const deltaY = Math.abs(touchEndY - touchStartY.current);
+    const velocity = Math.abs(deltaX) / (Date.now() - e.timeStamp + 1); // Rough velocity calculation
+
+    // Check if it's a valid swipe
+    if (deltaX > SWIPE_THRESHOLD && deltaY < 50 && (velocity > SWIPE_VELOCITY_THRESHOLD || deltaX > SWIPE_THRESHOLD * 1.5)) {
+      // Add success animation
+      const messageElement = e.target.closest('[data-message-id]');
+      if (messageElement) {
+        messageElement.classList.add('swipe-success');
+        setTimeout(() => {
+          messageElement.classList.remove('swipe-success');
+        }, 200);
+      }
+      
+      handleReply(message);
+    }
+
+    // Reset swipe state
+    setSwipingMessage(null);
+    setSwipeOffset(0);
+  };  const cancelReply = () => {
+    setReplyToId(null);
   };
 
   // Setup socket connection and fetch initial data
@@ -244,7 +373,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
 
         const upsertMessage = (message) => {
           // If this message confirms a temporary one, replace it
-          if (message.tempId && message.senderId._id === user.id) {
+          if (message.tempId) {
             // Add the *new* permanent ID to the processed set
             processedMessageIds.current.add(message._id);
 
@@ -406,6 +535,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
     const messagePayload = {
       _id: crypto.randomUUID(),
       text: messageText,
+      replyTo: replyToId ? messages.find(m => m._id === replyToId) : null,
       senderId: { _id: user.id, userName: user.username, color: user.color },
       roomName: roomInfo?.roomName || "global-room",
       createdAt: new Date().toISOString()
@@ -448,15 +578,28 @@ function Chat({ roomType, roomCode, user, roomData }) {
       const endpoint = `/api/messages/send/${roomName}`;
 
       // 🔽 Add a 'p2pSent' flag to the server request
-      await axios.post(endpoint, {
+      const requestData = {
         text: messageText,
         tempId: messagePayload._id,
         p2pSent: wasSentByP2P
-      });
+      };
+      
+      // Only include replyTo if it exists
+      if (replyToId) {
+        requestData.replyTo = replyToId;
+      }
+      
+      await axios.post(endpoint, requestData);
     } catch (error) {
       toast.error("Failed to send message to server.");
       console.error("Server send error:", error);
     }
+
+    // Clear reply state and scroll to bottom after sending
+    setReplyToId(null);
+    setTimeout(() => {
+      scrollToBottom('smooth');
+    }, 350);
   };
 
 
@@ -644,8 +787,11 @@ function Chat({ roomType, roomCode, user, roomData }) {
           {/* Messages Area - Scrollable */}
           <div
             ref={messagesContainerRef}
-            className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 sm:py-4 space-y-2 custom-scrollbar pb-[100px] sm:pb-[100px] md:pb-[110px] lg:pb-[120px]"
-
+            className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 sm:py-4 space-y-2 custom-scrollbar"
+            style={{ 
+              paddingBottom: replyToId ? '220px' : '120px',
+              transition: 'padding-bottom 0.3s ease-out'
+            }}
           >
             {messages.map((message, index) => {
               // Skip rendering if senderId is null
@@ -660,8 +806,94 @@ function Chat({ roomType, roomCode, user, roomData }) {
                 <div
                   key={message._id || index}
                   className={`flex ${isCurrentUser ? "justify-end" : "justify-start"}`}
+                  data-message-id={message._id}
                 >
-                  <div className="max-w-[85%] sm:max-w-[70%] relative z-0">
+                  <div 
+                    className="max-w-[85%] sm:max-w-[70%] relative z-0 group"
+                    style={{
+                      transform: swipingMessage === message._id ? `translateX(${swipeOffset}px)` : 'translateX(0)',
+                      transition: swipingMessage === message._id ? 'none' : 'transform 0.2s ease-out'
+                    }}
+                    onTouchStart={(e) => handleTouchStart(e, message)}
+                    onTouchEnd={(e) => handleTouchEnd(e, message)}
+                  >
+                    {/* Swipe indicator */}
+                    {swipingMessage === message._id && swipeOffset > 20 && (
+                      <div 
+                        className={`absolute left-0 top-0 bottom-0 flex items-center justify-center w-12 rounded-l-2xl backdrop-blur-sm border-l-2 transition-all duration-200 ${
+                          swipeOffset > SWIPE_THRESHOLD ? 'bg-green-500/30 border-green-400' : 'bg-blue-500/20 border-blue-400'
+                        }`}
+                        style={{ 
+                          transform: 'translateX(-100%)',
+                          opacity: swipeOffset > 20 ? 1 : 0
+                        }}
+                      >
+                        <svg 
+                          className={`w-5 h-5 transition-colors duration-200 ${
+                            swipeOffset > SWIPE_THRESHOLD ? 'text-green-400' : 'text-blue-400'
+                          }`} 
+                          fill={swipeOffset > SWIPE_THRESHOLD ? 'currentColor' : 'none'} 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                        </svg>
+                      </div>
+                    )}
+                    {/* Reply display */}
+                    {message.replyTo && (() => {
+                      const repliedMessageColor = message.replyTo.senderId?._id === user.id 
+                        ? colors.userColor 
+                        : message.replyTo.senderId?.color || '#6b7280';
+                      
+                      return (
+                        <div className="mb-3 ml-2 sm:ml-3">
+                          <div className="flex items-center gap-2 text-xs mb-2" style={{ color: `${repliedMessageColor}` }}>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                            </svg>
+                            <span className="font-medium">Replying to {message.replyTo.senderId?.userName || 'Unknown'}</span>
+                          </div>
+                          <div 
+                            className="rounded-lg px-3 py-2 max-w-full backdrop-blur-sm cursor-pointer hover:brightness-110 transition-all"
+                            style={{
+                              background: `${repliedMessageColor}15`,
+                              borderLeft: `3px solid ${repliedMessageColor}60`
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Find the original message element and scroll to it
+                              const originalMessageElement = document.querySelector(`[data-message-id="${message.replyTo._id}"]`);
+                              if (originalMessageElement) {
+                                // Check if element is already visible
+                                const container = messagesContainerRef.current;
+                                const elementRect = originalMessageElement.getBoundingClientRect();
+                                const containerRect = container.getBoundingClientRect();
+                                
+                                const isVisible = elementRect.top >= containerRect.top && 
+                                                 elementRect.bottom <= containerRect.bottom;
+                                
+                                if (!isVisible) {
+                                  originalMessageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }
+                                
+                                // Add highlight effect
+                                originalMessageElement.classList.add('highlight-message');
+                                setTimeout(() => {
+                                  originalMessageElement.classList.remove('highlight-message');
+                                }, 2000);
+                              }
+                            }}
+                            title="Click to view original message"
+                          >
+                            <p className="text-gray-300 text-sm line-clamp-2">
+                              {message.replyTo.text}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     <div
                       className={`text-xs sm:text-sm font-semibold mb-0.5 ${
                         isCurrentUser ? "text-right" : "text-left"
@@ -672,7 +904,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
                     </div>
                     <div className="relative">
                       <div
-                        className={`rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 backdrop-blur-sm border text-white mb-1 cursor-pointer select-none transition-all hover:brightness-110`}
+                        className={`rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 backdrop-blur-sm border text-white mb-1 cursor-pointer select-none transition-all hover:brightness-110 hover:shadow-md group-hover:shadow-sm`}
                         style={{
                           backgroundColor: `${senderColor}20`,
                           borderColor: `${senderColor}30`,
@@ -685,7 +917,22 @@ function Chat({ roomType, roomCode, user, roomData }) {
                         </p>
                       </div>
 
-
+                      {/* Reply button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleReply(message);
+                        }}
+                        className="absolute -top-1 -right-1 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                        style={{
+                          background: `linear-gradient(135deg, ${senderColor}, ${senderColor}dd)`,
+                        }}
+                        title="Reply to this message"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -695,6 +942,81 @@ function Chat({ roomType, roomCode, user, roomData }) {
 
           {/* Input Area - Fixed */}
           <div className="fixed bottom-0 left-0 right-0 p-2 sm:p-3 md:p-4 border-t border-white/10 bg-black/90 backdrop-blur-xl z-30">
+            {/* Reply Preview */}
+            {replyToId && (() => {
+              const replyMessage = messages.find(m => m._id === replyToId);
+              if (!replyMessage) return null;
+              
+              const replyPreviewColor = replyMessage.senderId?._id === user.id 
+                ? colors.userColor 
+                : replyMessage.senderId?.color || '#6b7280';
+              
+              return (
+                <div className="max-w-4xl mx-auto mb-3 opacity-100 animate-fade-in">
+                  <div 
+                    className="rounded-xl border p-3 backdrop-blur-sm shadow-lg transform transition-all duration-300 ease-out"
+                    style={{
+                      background: `linear-gradient(135deg, ${replyPreviewColor}15, ${replyPreviewColor}08)`,
+                      borderColor: `${replyPreviewColor}40`
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 text-sm" style={{ color: replyPreviewColor }}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                        </svg>
+                        <span className="font-medium">Replying to {replyMessage.senderId?.userName || 'Unknown'}</span>
+                      </div>
+                      <button
+                        onClick={cancelReply}
+                        className="text-gray-400 hover:text-white transition-colors p-1.5 hover:bg-white/10 rounded-lg"
+                        title="Cancel reply (Esc)"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div 
+                      className="rounded-lg px-3 py-2 max-w-full backdrop-blur-sm cursor-pointer hover:brightness-110 transition-all"
+                      style={{
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        borderLeft: `3px solid ${replyPreviewColor}80`
+                      }}
+                      onClick={() => {
+                        // Scroll to the original message when clicked
+                        const originalMessageElement = document.querySelector(`[data-message-id="${replyToId}"]`);
+                        if (originalMessageElement) {
+                          // Check if element is already visible
+                          const container = messagesContainerRef.current;
+                          const elementRect = originalMessageElement.getBoundingClientRect();
+                          const containerRect = container.getBoundingClientRect();
+                          
+                          const isVisible = elementRect.top >= containerRect.top && 
+                                           elementRect.bottom <= containerRect.bottom;
+                          
+                          if (!isVisible) {
+                            originalMessageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          }
+                          
+                          // Add highlight effect
+                          originalMessageElement.classList.add('highlight-message');
+                          setTimeout(() => {
+                            originalMessageElement.classList.remove('highlight-message');
+                          }, 2000);
+                        }
+                      }}
+                      title="Click to view original message"
+                    >
+                      <p className="text-gray-200 text-sm line-clamp-2">
+                        {replyMessage.text}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             <form
               onSubmit={handleSendMessage}
               className="flex gap-2 max-w-4xl mx-auto relative"
@@ -704,7 +1026,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
                   ref={textareaRef}
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type your message..."
+                  placeholder={replyToId ? `Reply to ${messages.find(m => m._id === replyToId)?.senderId?.userName || 'user'}...` : "Type your message..."}
                   rows={1}
                   style={{ resize: "none" }}
                   className={`w-full bg-white/5 text-white rounded-xl px-3 py-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-${colors.userColor}/50 border border-white/10 transition-all min-h-[40px] max-h-40 pr-14 text_scroll`}
@@ -716,6 +1038,9 @@ function Chat({ roomType, roomCode, user, roomData }) {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
                       handleSendMessage(e);
+                    } else if (e.key === "Escape" && replyToId) {
+                      e.preventDefault();
+                      cancelReply();
                     }
                   }}
                 />
@@ -777,7 +1102,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
 
 
 
-        <style jsx global>{`
+        <style>{`
           .text_scroll::-webkit-scrollbar {
             width: 0 !important;
             height: 0 !important;
@@ -805,6 +1130,53 @@ function Chat({ roomType, roomCode, user, roomData }) {
           }
           .h-screen {
             height: calc(var(--vh, 1vh) * 100);
+          }
+          .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+          }
+          .animate-fade-in {
+            animation: fadeIn 0.3s ease-out;
+          }
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+              transform: translateY(10px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+          .highlight-message {
+            animation: highlight 2s ease-out;
+          }
+          @keyframes highlight {
+            0% {
+              background: ${colors.userColor}30;
+            }
+            50% {
+              background: ${colors.userColor}20;
+            }
+            100% {
+              background: transparent;
+            }
+          }
+          .swipe-success {
+            animation: swipeSuccess 0.2s ease-out;
+          }
+          @keyframes swipeSuccess {
+            0% {
+              transform: translateX(0) scale(1);
+            }
+            50% {
+              transform: translateX(20px) scale(0.95);
+            }
+            100% {
+              transform: translateX(0) scale(1);
+            }
           }
         `}</style>
       </div>
