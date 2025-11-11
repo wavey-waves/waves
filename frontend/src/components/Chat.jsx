@@ -181,6 +181,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
   const [swipeOffset, setSwipeOffset] = useState(0);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
+  const touchStartTime = useRef(0);
   const SWIPE_THRESHOLD = 80; // Minimum swipe distance to trigger reply
   const SWIPE_VELOCITY_THRESHOLD = 0.3; // Minimum velocity for swipe
 
@@ -218,6 +219,8 @@ function Chat({ roomType, roomCode, user, roomData }) {
   const handleTouchStart = (e, message) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
+    // Capture a monotonic epoch time for velocity calculations
+    touchStartTime.current = Date.now();
     setSwipingMessage(message._id);
     setSwipeOffset(0);
   };
@@ -229,7 +232,10 @@ function Chat({ roomType, roomCode, user, roomData }) {
     const touchEndY = e.changedTouches[0].clientY;
     const deltaX = touchEndX - touchStartX.current;
     const deltaY = Math.abs(touchEndY - touchStartY.current);
-    const velocity = Math.abs(deltaX) / (Date.now() - e.timeStamp + 1); // Rough velocity calculation
+    // Compute velocity using the same time base as touchStartTime (ms since epoch)
+    // Guard against zero-duration by adding +1ms
+    const durationMs = Math.max(1, Date.now() - (touchStartTime.current || Date.now()));
+    const velocity = Math.abs(deltaX) / durationMs; // px per ms
 
     // Check if it's a valid swipe
     if (deltaX > SWIPE_THRESHOLD && deltaY < 50 && (velocity > SWIPE_VELOCITY_THRESHOLD || deltaX > SWIPE_THRESHOLD * 1.5)) {
