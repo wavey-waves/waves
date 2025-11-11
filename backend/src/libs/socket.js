@@ -50,8 +50,7 @@ io.on("connection", socket => {
   // Handle joining rooms
   socket.on("join", (roomName) => {
     socket.join(roomName);
-    console.log(`User ${socket.id} joined room: ${roomName}`);
-
+    
     // Get other users in the room
     const clientsInRoom = io.sockets.adapter.rooms.get(roomName);
     const otherUsers = [];
@@ -62,6 +61,9 @@ io.on("connection", socket => {
         }
       });
     }
+    
+    console.log(`[Socket] User ${socket.id} joined room: ${roomName}`);
+    console.log(`[Socket] Room ${roomName} now has ${clientsInRoom ? clientsInRoom.size : 0} users: ${clientsInRoom ? Array.from(clientsInRoom).join(', ') : 'none'}`);
 
     // Send the list of existing users to the new user to initiate P2P
     socket.emit("existing-room-users", { users: otherUsers });

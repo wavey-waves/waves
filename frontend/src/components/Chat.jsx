@@ -116,18 +116,15 @@ function Chat({ roomType, roomCode, user, roomData }) {
     // Ignore if the message is invalid
     if (!message || !message._id) return;
 
-    // 1. Check if we've already processed this message by its permanent ID
-    // 2. OR check if we've processed it by its temporary ID (from P2P)
+    // Check if we've already processed this message
     if (
       processedMessageIds.current.has(message._id) ||
       (message.tempId && processedMessageIds.current.has(message.tempId))
     ) {
-      // If either ID is already known, we've seen this message. Ignore it.
-      console.log(`[Deduplication] Ignored message: ${message.text}`);
       return;
     }
 
-    // This is a new message. Add BOTH of its IDs to the set for future checks.
+    // Mark as processed and add to state
     processedMessageIds.current.add(message._id);
     if (message.tempId) {
       processedMessageIds.current.add(message.tempId);
@@ -293,9 +290,8 @@ function Chat({ roomType, roomCode, user, roomData }) {
           dataChannelsRef.current.set(peerSocketId, dataChannel);
 
           dataChannel.onmessage = event => {
-            console.log("%c[P2P] Message received via DataChannel", "color: #22c55e;");
             try {
-              const message = JSON.parse(event.data)
+              const message = JSON.parse(event.data);
               addMessage(message);             
             } catch (error) {
               console.error("Failed to parse P2P message:", error);
@@ -321,9 +317,8 @@ function Chat({ roomType, roomCode, user, roomData }) {
             dataChannelsRef.current.set(peerSocketId, dataChannel);
 
             dataChannel.onmessage = (e) => {
-              console.log("%c[P2P] Message received via DataChannel", "color: #22c55e;");
               try {
-                const message = JSON.parse(e.data)
+                const message = JSON.parse(e.data);
                 addMessage(message);             
               } catch (error) {
                 console.error("Failed to parse P2P message:", error);
@@ -378,17 +373,34 @@ function Chat({ roomType, roomCode, user, roomData }) {
         }
 
         const upsertMessage = (message) => {
-          // If this message confirms a temporary one, replace it
-          if (message.tempId) {
-            // Add the *new* permanent ID to the processed set
-            processedMessageIds.current.add(message._id);
+          // Check if we already processed this permanent ID - if so, skip it entirely
+          if (processedMessageIds.current.has(message._id)) {
+            return;
+          }
 
-            setMessages(prev => 
-              prev.map(m => m._id === message.tempId ? message : m)
-            );
+          // Mark this permanent ID as processed immediately to prevent duplicates
+          processedMessageIds.current.add(message._id);
+
+          // If this message confirms a temporary one, try to replace it
+          if (message.tempId) {
+            // Also mark the tempId as processed
+            processedMessageIds.current.add(message.tempId);
+            
+            setMessages(prev => {
+              // Check if we have a message with this tempId
+              const hasTempMessage = prev.some(m => m._id === message.tempId);
+              
+              if (hasTempMessage) {
+                // Replace the temp message with the confirmed one
+                return prev.map(m => m._id === message.tempId ? message : m);
+              } else {
+                // This is from another user - we don't have their tempId, so add it normally
+                return [...prev, message];
+              }
+            });
           } else {
-            // Otherwise, add it normally (it's from another user)
-            addMessage(message);
+            // Otherwise, add it normally (it's from another user without tempId)
+            setMessages(prev => [...prev, message]);
           }
         };
 
@@ -400,7 +412,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
 
           // Setup message handler
           socketRef.current.on("chatMessage", message => {
-            console.log("%c[SERVER] Message received via WebSocket", "color: #f97316;");
+            console.log(`[Socket] Received message ${message._id} from ${message.senderId?.userName}`);
             upsertMessage(message);
           });
 

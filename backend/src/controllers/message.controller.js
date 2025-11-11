@@ -84,7 +84,11 @@ export const sendMessage = async (req, res) => {
 
     const payload = {...populated, tempId};    
 
+    // Get all sockets in the room for debugging
+    const socketsInRoom = await io.in(roomName).fetchSockets();
     console.log(`[Server] Broadcasting message ${payload._id} to room ${roomName}.`);
+    console.log(`[Server] Room ${roomName} has ${socketsInRoom.length} connected sockets: ${socketsInRoom.map(s => s.id).join(', ')}`);
+    
     io.to(roomName).emit("chatMessage", payload);
 
     res.status(201).json(populated);
