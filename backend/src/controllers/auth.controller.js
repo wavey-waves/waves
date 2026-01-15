@@ -41,13 +41,16 @@ export const signup = async (req, res) => {
     // Save user and generate token
     if(newUser) {
       await newUser.save();
-      generateToken(newUser._id, res);
-
+      
+      // Generate token and get it (for sending in response and setting cookie)
+      const token = generateToken(newUser._id, res);
+      
       res.status(201).json({
         _id: newUser._id,
         userName: newUser.userName,
         color: newUser.color,
-        isAnonymous: newUser.isAnonymous
+        isAnonymous: newUser.isAnonymous,
+        token: token // Include token for desktop apps
       });
     } else {
       res.status(400).json({message: "Invalid User data"});
@@ -79,12 +82,15 @@ export const login = async (req, res) => {
     }
     
 
-    generateToken(user._id, res);
+    // Generate token and get it (for sending in response)
+    const token = generateToken(user._id, res);
+    
     res.status(200).json({
       id: user._id,
       userName: user.userName,
       color: user.color,
-      isAnonymous: user.isAnonymous
+      isAnonymous: user.isAnonymous,
+      token: token // Include token for desktop apps
     });
   } catch (error) {
     console.log("Error in login auth controller", error.message);

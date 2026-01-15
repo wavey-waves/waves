@@ -1,16 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import axios from "axios";
+import apiClient from "../config";
 import { io } from "socket.io-client";
 import { toast, ToastContainer } from "react-toastify";
 import { useNavigate } from "react-router-dom";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import "react-toastify/dist/ReactToastify.css";
 import iconImage from "../assets/icon.png";
-
-// Configure axios defaults
-axios.defaults.withCredentials = true;
-
-// Use environment variable if set, otherwise default to localhost:3000 for development
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+import { BACKEND_URL } from "../config";
 
 // Public STUN servers for NAT traversal
 const ICE_SERVERS = {
@@ -37,14 +33,11 @@ function Chat({ roomType, roomCode, user, roomData }) {
   const dataChannelsRef = useRef(new Map());
   const processedMessageIds = useRef(new Set());
 
-
-
   //Constants for message input
   const CHARACTER_LIMIT = 1000;
   const CHARACTER_WARNING = 900;
   const [lastSent, setLastSent] = useState(0);
   const THROTTLE_DELAY = 1000;
-
 
   // Add viewport height handling
   useEffect(() => {
@@ -111,10 +104,6 @@ function Chat({ roomType, roomCode, user, roomData }) {
       )
     );
   };
-
-
-
-
 
   // Helper to clean up a P2P connection
   const closePeerConnection = (socketId) => {
@@ -209,7 +198,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
       try {
         if (actualRoomType === "network") {
           // Fetch room info for network rooms
-          const roomResponse = await axios.get("/api/rooms/assign");
+          const roomResponse = await apiClient.get("/api/rooms/assign");
           setRoomInfo(roomResponse.data);
           currentRoom = roomResponse.data.roomName;
         } else if (actualRoomType === "custom" && roomCode) {
@@ -235,7 +224,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
         } else {
           endpoint = `/api/messages/${currentRoom}`;
         }
-        const response = await axios.get(endpoint);
+        const response = await apiClient.get(endpoint);
         if (Array.isArray(response.data)) {
             response.data.forEach(msg => {
                 if(msg._id) processedMessageIds.current.add(msg._id)
@@ -269,8 +258,6 @@ function Chat({ roomType, roomCode, user, roomData }) {
             console.log("%c[SERVER] Message received via WebSocket", "color: #f97316;");
             upsertMessage(message);
           });
-
-
 
           // Setup error handler
           socketRef.current.on("error", (error) => {
@@ -351,7 +338,6 @@ function Chat({ roomType, roomCode, user, roomData }) {
     }
 
     // Cleanup function
-
     const socket = socketRef.current;
     const connections = peerConnectionsRef.current;
     const channels = dataChannelsRef.current;
@@ -449,7 +435,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
       const endpoint = `/api/messages/send/${roomName}`;
 
       // 🔽 Add a 'p2pSent' flag to the server request
-      await axios.post(endpoint, {
+      await apiClient.post(endpoint, {
         text: messageText,
         tempId: messagePayload._id,
         p2pSent: wasSentByP2P
@@ -459,8 +445,6 @@ function Chat({ roomType, roomCode, user, roomData }) {
       console.error("Server send error:", error);
     }
   };
-
-
 
   const getGradientColors = () => {
     if (actualRoomType === "global") {
@@ -494,6 +478,17 @@ function Chat({ roomType, roomCode, user, roomData }) {
   };
 
   const colors = getGradientColors();
+
+  const handleShareRoom = async () => {
+    try {
+      const roomUrl = `Waves Desktop - Room Code: ${roomCode}`;
+      await writeText(roomUrl);
+      toast.success("Room code copied to clipboard!");
+    } catch (error) {
+      console.error("Failed to copy to clipboard:", error);
+      toast.error("Failed to copy room code");
+    }
+  };
 
   return (
     <>
@@ -549,27 +544,9 @@ function Chat({ roomType, roomCode, user, roomData }) {
               <div className="flex items-center gap-2 flex-shrink-0">
                 {actualRoomType === "custom" && (
                   <button
-                    onClick={() => {
-                      const roomUrl = `${window.location.origin}/chat/custom/${roomCode}`;
-                      if (navigator.share) {
-                        // Use native sharing if available
-                        navigator.share({
-                          title: 'Join my Waves chat room!',
-                          text: `Join me in a custom chat room on Waves`,
-                          url: roomUrl
-                        }).catch(err => {
-                          // Fallback to clipboard copy if sharing fails
-                          navigator.clipboard.writeText(`Join my Waves chat room: ${roomUrl}`);
-                          toast.success("Room link copied to clipboard!");
-                        });
-                      } else {
-                        // Fallback for browsers without native sharing
-                        navigator.clipboard.writeText(`Join my Waves chat room: ${roomUrl}`);
-                        toast.success("Room link copied to clipboard!");
-                      }
-                    }}
+                    onClick={handleShareRoom}
                     className={`text-xs sm:text-sm font-medium bg-gradient-to-r ${colors.accent} bg-clip-text text-transparent px-2 py-0.5 sm:py-1 rounded-full border ${colors.border} backdrop-blur-sm hover:opacity-80 transition-opacity cursor-pointer flex items-center gap-1 flex-shrink-0`}
-                    title="Click to share room with friends"
+                    title="Click to copy room code"
                   >
                     <span className="hidden sm:inline">Code: {roomCode}</span>
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -646,7 +623,6 @@ function Chat({ roomType, roomCode, user, roomData }) {
           <div
             ref={messagesContainerRef}
             className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 sm:py-4 space-y-2 custom-scrollbar pb-[100px] sm:pb-[100px] md:pb-[110px] lg:pb-[120px]"
-
           >
             {messages.map((message, index) => {
               // Skip rendering if senderId is null
@@ -655,7 +631,6 @@ function Chat({ roomType, roomCode, user, roomData }) {
               const isCurrentUser = message.senderId._id === user.id;
               const senderName = isCurrentUser ? user.username : message.senderId.userName;
               const senderColor = isCurrentUser ? colors.userColor : message.senderId.color;
-
 
               return (
                 <div
@@ -678,15 +653,12 @@ function Chat({ roomType, roomCode, user, roomData }) {
                           backgroundColor: `${senderColor}20`,
                           borderColor: `${senderColor}30`,
                         }}
-
                         onClick={(e) => e.stopPropagation()}
                       >
                         <p className="text-white/90 text-sm sm:text-base break-words text-left">
                           {message.text}
                         </p>
                       </div>
-
-
                     </div>
                   </div>
                 </div>
@@ -776,8 +748,6 @@ function Chat({ roomType, roomCode, user, roomData }) {
           </div>
         </div>
 
-
-
         <style jsx global>{`
           .text_scroll::-webkit-scrollbar {
             width: 0 !important;
@@ -809,10 +779,9 @@ function Chat({ roomType, roomCode, user, roomData }) {
           }
         `}</style>
       </div>
-
-
     </>
   );
 }
 
 export default Chat;
+

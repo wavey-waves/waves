@@ -5,13 +5,17 @@ export const generateToken = (userId, res) => {
     expiresIn: "7d",
   });
 
-  res.cookie("jwt", token, {
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
-    httpOnly: true,
-    sameSite: "lax", // Changed from strict to lax for better compatibility
-    secure: process.env.NODE_ENV === "production", // Only use secure in production
-    path: "/", // Ensure cookie is available for all paths
-  });
+  // Set cookie for web browsers
+  if (res) {
+    res.cookie("jwt", token, {
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+      httpOnly: true,
+      sameSite: "lax", // Use lax for better compatibility
+      secure: process.env.NODE_ENV === "production", // Only use secure in production
+      path: "/", // Ensure cookie is available for all paths
+      // Don't set domain - let it default to the request domain (works for localhost)
+    });
+  }
 
   return token;
 };

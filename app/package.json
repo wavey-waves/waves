@@ -1,0 +1,35 @@
+{
+  "name": "waves-desktop",
+  "private": true,
+  "version": "2.1.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.1.0",
+    "@tauri-apps/plugin-clipboard-manager": "^2.0.0",
+    "@tailwindcss/vite": "^4.1.7",
+    "@vitejs/plugin-react": "^4.4.1",
+    "axios": "^1.9.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.6.0",
+    "react-toastify": "^11.0.5",
+    "socket.io-client": "^4.8.1",
+    "tailwindcss": "^4.1.7",
+    "unique-names-generator": "^4.7.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "vite": "^6.3.5"
+  }
+}
+
