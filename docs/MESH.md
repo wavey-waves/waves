@@ -154,13 +154,14 @@ If the latest commit on this branch is < 30 min old, another session is likely a
       iroh-blobs transfer + WiFi-Direct GO/join, with printed pass/fail per check.
       OWNER ACTION: run on 2 Windows 11 laptops, firewalled, no internet; report
       adapter `netsh wlan show wirelesscapabilities` output.
-- [ ] P1.a Rust workspace scaffold: `src-tauri` app crate + `mesh-core` + Tauri config
+- [x] P1.a Rust workspace scaffold: `src-tauri` app crate + `mesh-core` + Tauri config
       pointing at `frontend/` (no duplicated UI — lesson of the dead `direct-p2p` branch)
-- [ ] P1.b `mesh-core`: identity + SQLite store + version vectors (unit-tested)
+- [x] P1.b `mesh-core`: identity + SQLite store + version vectors (unit-tested)
 - [ ] P1.c `mesh-core`: iroh endpoint (offline config) + neighbor link management +
-      mDNS discovery + UDP beacon fallback
-- [ ] P1.d `mesh-core`: flood plane + anti-entropy plane (multi-node integration tests
-      over in-process iroh endpoints — A–B–C relay must pass on Linux CI)
+      mDNS discovery + UDP beacon fallback (+ an iroh-level loopback integration test)
+- [x] P1.d `mesh-core`: flood plane + anti-entropy plane — sans-IO engine, multi-node
+      tests over in-memory links (A–B–C relay, diamond dedup, TTL+sync convergence,
+      late joiner, partition heal, forgery rejection, restart persistence)
 - [ ] P1.e Tauri IPC: commands (send, history, join-room) + Channel streams
       (messages, peers) + capability file
 - [ ] P1.f Frontend transport seam: `src/transport/` with web + tauri implementations;
