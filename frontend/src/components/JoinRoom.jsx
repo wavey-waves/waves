@@ -99,7 +99,7 @@ const ROOM_THEMES = {
   }
 };
 
-function JoinRoom({ onJoin, roomName = "Global", onClose, isCustomRoom = false, customRoomData = null }) {
+function JoinRoom({ onJoin, roomName = "Global", onClose, isCustomRoom = false }) {
   const [joinType, setJoinType] = useState("anonymous");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -216,11 +216,11 @@ function JoinRoom({ onJoin, roomName = "Global", onClose, isCustomRoom = false, 
             userName: finalUsername
           });
           
-          const { id, userName, color } = loginRes.data;
+          const { _id, userName, color } = loginRes.data;
           localStorage.setItem('anonymousUsername', finalUsername);
           localStorage.setItem('userColor', finalColor);
           onJoin({
-            id,
+            id: _id,
             username: userName,
             color,
             isAnonymous: true
@@ -278,9 +278,9 @@ function JoinRoom({ onJoin, roomName = "Global", onClose, isCustomRoom = false, 
             password
           });
 
-          const { id, userName, color } = response.data;
+          const { _id, userName, color } = response.data;
           onJoin({
-            id,
+            id: _id,
             username: userName,
             color,
             isAnonymous: false

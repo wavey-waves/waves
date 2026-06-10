@@ -20,7 +20,7 @@ import axios from "axios";
 // Configure axios defaults
 axios.defaults.withCredentials = true;
 
-function Home({ onJoinRoom }) {
+function Home() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showJoinRoom, setShowJoinRoom] = useState(location.state?.showJoinRoom || false);
@@ -41,8 +41,7 @@ function Home({ onJoinRoom }) {
     setShowJoinRoom(true);
   };
 
-  const handleJoinSuccess = (userData) => {
-    onJoinRoom(userData, selectedRoomType);
+  const handleJoinSuccess = () => {
     setShowJoinRoom(false);
     navigate(`/chat/${selectedRoomType}`, { state: { fromHome: true } });
   };
@@ -55,8 +54,7 @@ function Home({ onJoinRoom }) {
     setShowJoinRoom(true);
   };
 
-  const handleCustomJoinSuccess = (userData) => {
-    onJoinRoom(userData, 'custom');
+  const handleCustomJoinSuccess = () => {
     setShowJoinRoom(false);
     navigate(`/chat/custom/${customRoomData.code}`, { state: { fromHome: true, roomData: customRoomData } });
   };
@@ -275,7 +273,7 @@ function ChatRoute() {
             isAnonymous: response.data.isAnonymous
           });
         }
-      } catch (error) {
+      } catch {
         console.log(`[DEBUG] No authentication found, handling room type: ${roomType}`);
         // If no valid session, handle based on room type
         if (isMounted) {
@@ -382,20 +380,12 @@ function ChatRoute() {
 }
 
 function App() {
-  const [user, setUser] = useState(null);
-  const [roomType, setRoomType] = useState(null);
-
-  const handleJoinRoom = (userData, type) => {
-    setUser(userData);
-    setRoomType(type);
-  };
-
   return (
     <>
       <ToastContainer position="bottom-right" autoClose={2500} theme="dark" />
       <Router>
         <Routes>
-          <Route path="/" element={<Home onJoinRoom={handleJoinRoom} />} />
+          <Route path="/" element={<Home />} />
           <Route 
             path="/chat/:roomType" 
             element={<ChatRoute />} 

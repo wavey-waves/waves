@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "[\\s\\S]*(@coderabbitai|coderabbit\\.ai|coderabbit-ai|CodeRabbit|coderabbit|⚠️\\s*Potential\\s+issue|🛠️\\s*Refactor\\s+suggestion|📝\\s*Nitpick|Actionable\\s+comments\\s+posted|Outside\\s+diff\\s+range\\s+comments|Comments\\s+suppressed\\s+due\\s+to\\s+low\\s+confidence|Summary\\s+by\\s+CodeRabbit|```suggestion)[\\s\\S]*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '\\n[coderabbit auto-delegation] The submitted prompt looks like CodeRabbit review content. The main agent should auto-delegate to the coderabbit-fixer subagent WITHOUT waiting for /fix-coderabbit. Dispatcher protocol: group comments by target file; for EACH file acquire a per-file lock via `bash .claude/lib/session-lock.sh acquire cr-fixer:<file-sha1-12> $CLAUDE_SESSION_ID --note <path>` BEFORE spawning — if acquire fails (exit 2) another window owns it, skip with a deferring note. Spawn one coderabbit-fixer per file with run_in_background:true (parallel Agent calls in one message when several), each paired with a Monitor on `bash .claude/scripts/agent-progress-monitor.sh <output_file>`, passing CR_LOCK_KEY + CR_SESSION_ID so the fixer releases its lock on exit. Forward same-file comments to a live fixer via SendMessage. Track every spawn in the in-flight registry and surface the ## In-flight block each turn while any fixer is alive. Apply SAFE fixes automatically, surface STRUCTURAL via AskUserQuestion, ALWAYS halt on branch-intent regions. See .claude/agents/coderabbit-fixer.md and .claude/commands/fix-coderabbit.md.'"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/block-destructive-git.js"
+          }
+        ]
+      }
+    ]
+  }
+}

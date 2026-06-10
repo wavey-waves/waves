@@ -102,18 +102,6 @@ function Chat({ roomType, roomCode, user, roomData }) {
     setMessages((prevMessages) => [...prevMessages, message]);
   };
 
-  // Helper to update a message
-  const updateMessage = (updatedMessage) => {
-    setMessages(prevMessages => 
-      prevMessages.map(msg => 
-        msg._id === updatedMessage._id ? updatedMessage : msg
-      )
-    );
-  };
-
-
-
-
 
   // Helper to clean up a P2P connection
   const closePeerConnection = (socketId) => {
@@ -331,7 +319,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
               .catch(e => console.error("Error adding received ICE candidate:", e));
           });
 
-          socketRef.current.on("user-left", ({socketId}) => {
+          socketRef.current.on("userLeft", ({socketId}) => {
             toast.warn("A user has left the room.");
             closePeerConnection(socketId);
           });
@@ -349,24 +337,28 @@ function Chat({ roomType, roomCode, user, roomData }) {
       setupSocketAndFetchData();
     }
 
-    // Cleanup function
-
-    const socket = socketRef.current;
+    // Cleanup function.
+    // The Map/Set ref containers have a stable identity (created once), so we
+    // snapshot them here. The socket, however, is assigned later by the async
+    // setupSocketAndFetchData(), so we must read socketRef.current *inside* the
+    // cleanup — capturing it synchronously here would always be null and the
+    // socket would never disconnect.
     const connections = peerConnectionsRef.current;
     const channels = dataChannelsRef.current;
     const processedMessages = processedMessageIds.current;
     return () => {
+      const socket = socketRef.current;
+
       if (socket) {
         if (currentRoom) {
           socket.emit("leave", currentRoom);
         }
-        
-        // Use the 'connections' variable which is a stable snapshot.
+
         console.log(`Cleaning up ${connections.size} peer connections.`);
         connections.forEach((pc) => {
           pc.close();
         });
-        
+
         socket.disconnect();
       }
 
@@ -413,26 +405,17 @@ function Chat({ roomType, roomCode, user, roomData }) {
 
     addMessage(messagePayload);
 
-    let wasSentByP2P = false;
-    let peerCount = 0;
-
+    // Deliver to any connected peers over their open data channels (P2P path).
     dataChannelsRef.current.forEach((channel) => {
-      peerCount++;
       if (channel.readyState === "open") {
         try {
           channel.send(JSON.stringify(messagePayload));
           console.log(`[CLIENT]Message sent to peer via P2P`);
-          wasSentByP2P = true;
         } catch (error) {
           console.error(`P2P send error:`, error);
         }
       }
     });
-
-    // If there are no peers, P2P send is irrelevant
-    if (peerCount === 0) {
-      wasSentByP2P = false;
-    }
 
     // Always send to server for fallback and persistence
     try {
@@ -447,11 +430,9 @@ function Chat({ roomType, roomCode, user, roomData }) {
       if (!roomName) throw new Error("Room name not available");
       const endpoint = `/api/messages/send/${roomName}`;
 
-      // 🔽 Add a 'p2pSent' flag to the server request
       await axios.post(endpoint, {
         text: messageText,
-        tempId: messagePayload._id,
-        p2pSent: wasSentByP2P
+        tempId: messagePayload._id
       });
     } catch (error) {
       toast.error("Failed to send message to server.");
@@ -556,7 +537,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
                           title: 'Join my Waves chat room!',
                           text: `Join me in a custom chat room on Waves`,
                           url: roomUrl
-                        }).catch(err => {
+                        }).catch(() => {
                           // Fallback to clipboard copy if sharing fails
                           navigator.clipboard.writeText(`Join my Waves chat room: ${roomUrl}`);
                           toast.success("Room link copied to clipboard!");

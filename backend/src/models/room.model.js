@@ -38,6 +38,11 @@ const roomSchema = new mongoose.Schema({
 }, {timestamps: true});
 
 // Generate unique room code
+/**
+ * Generate a unique 6-character room code, retrying until one is free.
+ * @this {import('mongoose').Model<any>}
+ * @returns {Promise<string>}
+ */
 roomSchema.statics.generateUniqueCode = async function() {
   let code;
   let exists = true;

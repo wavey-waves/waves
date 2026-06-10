@@ -45,7 +45,7 @@ export const assignRoom = async (req, res) => {
 
 export const createRoom = async (req, res) => {
   try {
-    const code = await Room.generateUniqueCode();
+    const code = await /** @type {any} */ (Room).generateUniqueCode();
     const roomName = `custom-${code}`;
     
     const room = await Room.create({

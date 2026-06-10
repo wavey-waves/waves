@@ -1,0 +1,2 @@
+# Runtime concurrency locks written by .claude/lib/session-lock.sh
+.locks/
