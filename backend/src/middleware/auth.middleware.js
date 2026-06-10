@@ -14,7 +14,9 @@ export const protectedRoute = async (req, res, next) => {
     }
 
     try {
-      const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
+      const decodedToken = /** @type {{ userId: string }} */ (
+        jwt.verify(token, process.env.JWT_SECRET)
+      );
       if(!decodedToken) {
         return res.status(401).json({
           isAuthenticated: false,
@@ -37,9 +39,10 @@ export const protectedRoute = async (req, res, next) => {
         isAuthenticated: true
       };
       next();
-    } catch (jwtError) {
-      // Handle JWT verification errors
-      return res.status(500).json({
+    } catch {
+      // An expired / malformed / wrong-secret token is a client auth failure,
+      // not a server error — respond 401 so clients can re-authenticate.
+      return res.status(401).json({
         isAuthenticated: false,
         message: "Invalid token"
       });
