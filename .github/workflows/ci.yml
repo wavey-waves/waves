@@ -4,7 +4,9 @@ name: CI
 # on every push to main and every pull request, plus an advisory dependency audit.
 on:
   push:
-    branches: [main]
+    # offline-mesh: long-running mesh feature branch — the Windows mesh job
+    # below is its only true-Windows verification, so CI runs on every push.
+    branches: [main, offline-mesh]
   pull_request:
   workflow_dispatch: # allow manual runs from the Actions tab
 
@@ -79,6 +81,76 @@ jobs:
 
       - name: Build (vite build)
         run: npm run build
+
+  # Mesh (src-tauri workspace). Two jobs: Linux runs the protocol tests fast;
+  # Windows is the only place the Tauri app crate and radio-win actually
+  # compile-check (WebView2/WinRT deps can't cross-check from Linux — ring's
+  # build script needs MSVC tooling).
+  mesh-linux:
+    name: Mesh · cargo test + clippy (Linux)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src-tauri
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Rust (stable)
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          components: clippy
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+        with:
+          workspaces: src-tauri
+
+      - name: Test (mesh-core + spike)
+        run: cargo test
+
+      - name: Clippy (deny warnings)
+        run: cargo clippy --all-targets -- -D warnings
+
+  mesh-windows:
+    name: Mesh · full workspace check + test (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # The Tauri app crate embeds frontendDist at compile time, so the
+      # frontend must be built before the workspace check.
+      - name: Build frontend (prerequisite for tauri generate_context)
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Set up Rust (stable)
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+        with:
+          workspaces: src-tauri
+
+      - name: Check full workspace (app crate + radio-win included)
+        working-directory: src-tauri
+        run: cargo check --workspace --all-targets
+
+      - name: Test on Windows (mesh-core protocol + net over loopback)
+        working-directory: src-tauri
+        run: cargo test
 
   # Blocking gate: both packages are currently clean at high+ severity. Fails
   # the build if a high or critical advisory is introduced (directly or via a
