@@ -42,6 +42,13 @@ try {
 const cmd = (input && input.tool_input && input.tool_input.command) || "";
 if (!cmd) process.exit(0);
 
+// Escape hatch: the user explicitly authorized agent commits on this branch
+// (offline-mesh work, 2026-06-10). A command that sets WAVES_AGENT_COMMIT=1
+// inline may run `git commit` (and only commit — every other forbidden verb
+// stays blocked). The marker must appear in the command itself so each
+// authorized commit is visible in the transcript, not ambient in the env.
+const AGENT_COMMIT_OK = /\bWAVES_AGENT_COMMIT=1\b/.test(cmd);
+
 // Strip leading `cd ... &&` / `pushd ... &&` so we match the real verb.
 // Also normalise `git -C <path> <verb>` → `git <verb>` so forbidden verbs
 // are still caught when an absolute path is supplied instead of a `cd`.
@@ -67,7 +74,7 @@ const FORBIDDEN = [
   [/\bgit\s+revert\b/, "git revert"],
   [/\bgit\s+branch\s+(-D|--delete\s+--force|-d\s+-f)/, "git branch -D / --delete --force"],
   [/\bgit\s+push\s+(.*\s+)?(-f\b|--force\b|--force-with-lease\b)/, "git push --force"],
-  [/\bgit\s+commit\b/, "git commit"],
+  [/\bgit\s+commit\b/, "git commit", "commit"],
   [/\bgit\s+config\s+(--global|--system|--local|--file|--add|--replace-all|--unset|--unset-all|--remove-section|--rename-section)\b/, "git config (write)"],
   // Also catch the bare two-argument write form `git config <key> <value>`
   // (e.g. `git config user.name "Alice"`). The `[^\s-]` excludes read flags
@@ -76,8 +83,9 @@ const FORBIDDEN = [
   [/\bgit\s+config\s+[^\s-][^\s]*\s+/, "git config (write)"],
 ];
 
-for (const [re, label] of FORBIDDEN) {
+for (const [re, label, kind] of FORBIDDEN) {
   if (re.test(normalized)) {
+    if (kind === "commit" && AGENT_COMMIT_OK) continue;
     const reason =
       `[block-destructive-git] Bash command rejected: ${label}. ` +
       `Per CLAUDE.md "Git", destructive / shared-state git operations are ` +
