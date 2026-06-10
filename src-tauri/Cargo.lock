@@ -6291,6 +6291,7 @@ dependencies = [
 name = "waves-desktop"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "mesh-core",
  "serde",
  "serde_json",
@@ -6298,6 +6299,7 @@ dependencies = [
  "tauri-build",
  "tokio",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
