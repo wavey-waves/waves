@@ -275,7 +275,7 @@ function ChatRoute() {
             isAnonymous: response.data.isAnonymous
           });
         }
-      } catch (error) {
+      } catch {
         console.log(`[DEBUG] No authentication found, handling room type: ${roomType}`);
         // If no valid session, handle based on room type
         if (isMounted) {
@@ -382,8 +382,9 @@ function ChatRoute() {
 }
 
 function App() {
-  const [user, setUser] = useState(null);
-  const [roomType, setRoomType] = useState(null);
+  // Only the setters are used here (the values are read in the route components).
+  const [, setUser] = useState(null);
+  const [, setRoomType] = useState(null);
 
   const handleJoinRoom = (userData, type) => {
     setUser(userData);
