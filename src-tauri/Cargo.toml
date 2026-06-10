@@ -1,0 +1,54 @@
+[workspace]
+members = [".", "crates/mesh-core", "crates/radio-win", "crates/spike"]
+# The app crate needs the WebView toolchain (WebView2 on Windows, GTK on Linux),
+# so day-to-day Linux dev builds only the platform-independent members:
+#   cargo test            -> mesh-core + spike
+#   cargo check -p waves-desktop --target x86_64-pc-windows-msvc  -> app crate
+default-members = ["crates/mesh-core", "crates/spike"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.91"
+license = "ISC"
+repository = "https://github.com/wavey-waves/waves"
+
+[workspace.dependencies]
+blake3 = "1.8"
+ed25519-dalek = "2.2"
+lru = "0.18"
+postcard = { version = "1.1", features = ["use-std"] }
+rand = "0.9"
+rusqlite = { version = "0.40", features = ["bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tokio = { version = "1.52", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
+tracing = "0.1"
+# iroh: pinned exactly per docs/MESH.md D1 — rc churn is real, and iroh-blobs
+# 0.102.0 requires =1.0.0-rc.1. Default features pull in portmapper/metrics
+# (internet-era machinery we don't want); we only need a TLS backend.
+iroh = { version = "=1.0.0-rc.1", default-features = false, features = ["tls-ring"] }
+iroh-blobs = "=0.102.0"
+iroh-mdns-address-lookup = "=0.3.0"
+mesh-core = { path = "crates/mesh-core" }
+
+[package]
+name = "waves-desktop"
+version = "0.1.0"
+description = "Waves Desktop — offline P2P mesh chat"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2.6", features = [] }
+
+[dependencies]
+tauri = { version = "2.11", features = [] }
+mesh-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true

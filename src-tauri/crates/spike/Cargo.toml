@@ -1,0 +1,18 @@
+[package]
+name = "waves-spike"
+version = "0.1.0"
+description = "Phase-0 hardware validation binary — run on two Windows laptops, no internet"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "waves-spike"
+path = "src/main.rs"
+
+[dependencies]
+mesh-core.workspace = true
+radio-win = { path = "../radio-win" }
+tokio.workspace = true
+tracing.workspace = true

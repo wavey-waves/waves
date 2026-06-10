@@ -1,0 +1,24 @@
+[package]
+name = "mesh-core"
+version = "0.1.0"
+description = "Waves mesh core: identity, message store, flood + anti-entropy protocol engine"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+blake3.workspace = true
+ed25519-dalek.workspace = true
+lru.workspace = true
+postcard.workspace = true
+rand.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

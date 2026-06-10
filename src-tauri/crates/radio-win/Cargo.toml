@@ -1,0 +1,12 @@
+[package]
+name = "radio-win"
+version = "0.1.0"
+description = "Windows radio control for Waves mesh: WiFi-Direct legacy-AP host + WlanConnect joiner"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+tracing.workspace = true

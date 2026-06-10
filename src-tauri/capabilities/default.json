@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "Main window capability for the Waves mesh UI",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
