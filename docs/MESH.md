@@ -157,15 +157,33 @@ If the latest commit on this branch is < 30 min old, another session is likely a
 - [x] P1.a Rust workspace scaffold: `src-tauri` app crate + `mesh-core` + Tauri config
       pointing at `frontend/` (no duplicated UI — lesson of the dead `direct-p2p` branch)
 - [x] P1.b `mesh-core`: identity + SQLite store + version vectors (unit-tested)
-- [ ] P1.c `mesh-core`: iroh endpoint (offline config) + neighbor link management +
-      mDNS discovery + UDP beacon fallback (+ an iroh-level loopback integration test)
+- [x] P1.c `mesh-core`: iroh endpoint (offline config) + neighbor link management +
+      mDNS discovery + UDP beacon fallback; 3 loopback integration tests over real
+      QUIC (bidirectional text, late-joiner sync, A–B–C bridge relay)
 - [x] P1.d `mesh-core`: flood plane + anti-entropy plane — sans-IO engine, multi-node
       tests over in-memory links (A–B–C relay, diamond dedup, TTL+sync convergence,
       late joiner, partition heal, forgery rejection, restart persistence)
 - [ ] P1.e Tauri IPC: commands (send, history, join-room) + Channel streams
-      (messages, peers) + capability file
+      (messages, peers) + capability file.
+      STATUS: code landed (`src-tauri/src/ipc.rs`, wired in `main.rs`) but has
+      NEVER been compiled — Linux can't build the app crate (GTK missing, and
+      MSVC cross-check dies in ring's build script needing lib.exe). The CI
+      `mesh-windows` job added in `.github/workflows/ci.yml` is the gate: check
+      this box only once that job is green on this code (fix what it reports).
 - [ ] P1.f Frontend transport seam: `src/transport/` with web + tauri implementations;
-      Chat.jsx consumes the seam; web build behavior unchanged (gates prove it)
+      Chat.jsx consumes the seam; web build behavior unchanged (gates prove it).
+      Implementation contract: `src/transport/index.js` exposes `isTauri()` +
+      `createTransport({user})` (dynamic import keeps @tauri-apps/api out of the
+      web bundle); both transports implement {kind, resolveRoom, fetchHistory,
+      connect({roomName, handlers}), send({roomName, payload}), disconnect} —
+      web.js lifts the socket.io/WebRTC/axios logic out of Chat.jsx verbatim
+      (REALTIME.md dedup invariant is law), tauri.js maps the camelCase
+      MessageDto/MeshEventDto from `src-tauri/src/ipc.rs` to the UI shape
+      (id→_id, originId→senderId._id, createdAtMs→ISO createdAt), retries the
+      "mesh-starting" rejection with backoff, and resolves rooms offline-side
+      as: custom code → `mesh-<CODE>`, global/network → `mesh-global`. JoinRoom
+      gets a serverless tauri path (local name+color → mesh_set_author +
+      mesh_info → user{id: endpointId}); registered login hidden offline.
 - [ ] P1.g NSIS installer config + firewall-rule hook
 - [ ] P2.a Blob store + announce-then-pull + fetch-and-reseed in `mesh-core`
 - [ ] P2.b Image send/render UI: picker → thumbnail gen → announce; asset-protocol
@@ -193,9 +211,11 @@ If the latest commit on this branch is < 30 min old, another session is likely a
 
 ## Dev environment notes
 
-- Agent develops on WSL2: `mesh-core` fully buildable/testable on Linux;
-  `radio-win` is `cfg(windows)` and cross-checked with
-  `cargo check --target x86_64-pc-windows-msvc` (no linking); the Tauri app crate is
-  checked for the Windows target too (Linux check would demand the GTK stack).
+- Agent develops on WSL2/Linux: `mesh-core` fully buildable/testable there.
+  The app crate and `radio-win` CANNOT be verified from Linux (GTK missing for
+  a native check; `--target x86_64-pc-windows-msvc` dies in ring's build script
+  wanting MSVC `lib.exe`). The CI `mesh-windows` job (windows-latest, full
+  `cargo check --workspace --all-targets` + `cargo test`) is the authoritative
+  gate for Windows-only code — push and watch it.
 - Owner builds/runs the real app on Windows: `cd src-tauri && cargo tauri dev`
   (frontend dev server on 5174 must be running) or `cargo tauri build` for the installer.
