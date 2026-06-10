@@ -20,7 +20,7 @@ Defined in `App.jsx`:
 
 | Path | Element | Notes |
 | --- | --- | --- |
-| `/` | `<Home onJoinRoom={...} />` | Room selection (Global / Network / Custom cards) + Docs button. |
+| `/` | `<Home />` | Room selection (Global / Network / Custom cards) + Docs button. `Home` navigates on its own (`useNavigate`) on join success — it takes no props. |
 | `/chat/:roomType` | `<ChatRoute />` | `:roomType` is `global` or `network`. |
 | `/chat/custom/:roomCode` | `<ChatRoute />` | Custom room; `roomCode` is the 6-char code. `ChatRoute` resolves `roomType = roomCode ? 'custom' : urlRoomType`. |
 

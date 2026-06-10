@@ -36,11 +36,18 @@ function once(socket, event, timeout = 3000) {
 // Assert an event does NOT arrive within `window` ms.
 function never(socket, event, window = 400) {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(resolve, window)
-    socket.once(event, () => {
+    let timer
+    const handler = () => {
       clearTimeout(timer)
       reject(new Error(`unexpectedly received ${event}`))
-    })
+    }
+    socket.once(event, handler)
+    timer = setTimeout(() => {
+      // Detach the listener on the success path so it can't fire (and reject)
+      // against a later test once this one has resolved.
+      socket.off(event, handler)
+      resolve()
+    }, window)
   })
 }
 

@@ -68,8 +68,14 @@ Backend `.env` requires: `PORT`, `MONGODB_URI`, `JWT_SECRET`, `NODE_ENV`. The fr
 This is a real application that ships to production (deployed on Render). The conventions below keep changes safe and verifiable. The stack is plain JS/JSX (no TypeScript source); type-checking is added via `tsc --checkJs` + JSDoc on the backend.
 
 ### Validate and verify every change
-- **Backend:** run `npm run check` (lint + `tsc --checkJs` typecheck + Vitest) and get it green before declaring done. The test suite uses Supertest against the app from `app.js` and an in-memory MongoDB (`mongodb-memory-server`) — no real DB needed. Type errors from checkJs are real; fix them (JSDoc casts where Mongoose's types are over-strict) rather than suppressing.
-- **Frontend:** run `npm run lint` and `npm test` (Vitest + React Testing Library, jsdom). External boundaries (axios, `socket.io-client`, `RTCPeerConnection`, toastify) are mocked in the tests.
+- **Always run the full gate set before declaring ANY change done — never skip it, never declare done on partial gates.** These are the same gates CI enforces (`.github/workflows/ci.yml`), so green locally ≈ green in CI. Run them for **both** packages whenever a change *could* affect them (when in doubt, run both):
+  - **Backend** (`cd backend`): `npm run check` — lint + `tsc --checkJs` typecheck + Vitest.
+  - **Frontend** (`cd frontend`): `npm run lint` **and** `npm test` **and** `npm run build` (the production build is a gate — a passing test suite does not prove the app builds).
+  - **Both**: `npm audit --audit-level=high` — the CI dependency-audit gate is blocking.
+
+  If a gate is red, fix it before moving on; do not hand back work with a known-red gate. If a test is **flaky** (passes locally, fails in CI, or vice-versa), treat it as a real bug and fix the root cause (e.g. await async index builds in test setup) — don't retry until it's green or mark it `.skip`.
+- **Backend** test details: Supertest against the app from `app.js` and an in-memory MongoDB (`mongodb-memory-server`) — no real DB needed. Type errors from checkJs are real; fix them (JSDoc casts where Mongoose's types are over-strict) rather than suppressing.
+- **Frontend** test details: Vitest + React Testing Library (jsdom). External boundaries (axios, `socket.io-client`, `RTCPeerConnection`, toastify) are mocked in the tests.
 - Automated tests don't exercise the real WebRTC/Socket.IO path between two browsers. For changes to messaging, **also** manually verify with two clients: a message from one peer reaches the other over WebRTC *and* is persisted/echoed by the server, with no duplicate rendered (the P2P + server-fallback dedup described above). For auth/room changes, verify the lifecycle: join → message → reload (cookie persists session) → leave.
 - Add/extend tests when you change behavior, and update the matching `docs/` file in the same change.
 - Don't declare a task done on "the code looks right" — exercise it.
