@@ -40,3 +40,15 @@ npm test            # vitest run
 
 - Test files are maintained alongside the code; this doc describes the **tooling and commands**, not a file-by-file inventory.
 - There is no aggregate test command at the repo root; run the backend and frontend checks separately.
+
+## Continuous Integration
+
+GitHub Actions runs these same checks on every push to `main`, every pull request, and on demand (`workflow_dispatch`). Workflow: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml). Node 22, dependencies installed with `npm ci` against each package's lockfile.
+
+| Job | Working dir | Steps | Gate |
+| --- | --- | --- | --- |
+| **Backend** | `backend/` | `npm run lint` → `npm run typecheck` → `npm test` | blocking |
+| **Frontend** | `frontend/` | `npm run lint` → `npm test` → `npm run build` | blocking |
+| **Dependency audit** | `backend/` + `frontend/` (matrix) | `npm audit --audit-level=high` | blocking |
+
+Both packages are currently clean (`npm audit` → 0 vulnerabilities), so the audit job is a **blocking gate**: a newly introduced high/critical advisory fails CI. Because advisories can be published against an already-installed dependency with no code change, this job can occasionally go red on its own — triage by running `npm audit fix` (or bumping the offending dep). If no upstream fix exists yet, temporarily relax `--audit-level` or re-add `continue-on-error: true` to the `security-audit` job until it's resolved.

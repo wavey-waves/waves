@@ -1,0 +1,109 @@
+name: CI
+
+# Runs the same gates as `npm run check` (backend) and lint/test/build (frontend)
+# on every push to main and every pull request, plus an advisory dependency audit.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: # allow manual runs from the Actions tab
+
+# A newer push to the same branch/PR cancels the in-flight run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: CI only needs to read the repo.
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend · lint · typecheck · test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check (tsc --checkJs)
+        run: npm run typecheck
+
+      - name: Test (vitest + in-memory MongoDB)
+        run: npm test
+
+  frontend:
+    name: Frontend · lint · test · build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test (vitest + jsdom + RTL)
+        run: npm test
+
+      - name: Build (vite build)
+        run: npm run build
+
+  # Blocking gate: both packages are currently clean at high+ severity. Fails
+  # the build if a high or critical advisory is introduced (directly or via a
+  # transitive dep). Note this can also go red when a NEW advisory is published
+  # against an existing dependency with no code change — triage by bumping the
+  # dep (`npm audit fix`) or, if no fix is yet available, temporarily relax
+  # `--audit-level` or re-add `continue-on-error` while it's resolved.
+  security-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [backend, frontend]
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.package }}/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: npm audit (high and above)
+        run: npm audit --audit-level=high
