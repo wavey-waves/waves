@@ -23,7 +23,7 @@ export const getMessages = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
   try {
-    const {text, image, tempId} = req.body;
+    const {text, tempId} = req.body;
     const senderId = req.user._id;
     const roomName = req.params.roomName;
 
@@ -84,9 +84,13 @@ export const reactToMessage = async (req, res) => {
       // Remove the reaction if it exists
       message.reactions.splice(existingReactionIndex, 1);
     } else {
-      // Remove any other reaction from this user first (one reaction per user)
-      message.reactions = message.reactions.filter(
-        reaction => reaction.userId.toString() !== userId.toString()
+      // Remove any other reaction from this user first (one reaction per user).
+      // Mongoose casts the plain array back into a DocumentArray on assignment;
+      // the cast keeps checkJs happy without changing runtime behavior.
+      message.reactions = /** @type {any} */ (
+        message.reactions.filter(
+          reaction => reaction.userId.toString() !== userId.toString()
+        )
       );
       // Add the new reaction
       message.reactions.push({ userId, emoji });
