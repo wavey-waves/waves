@@ -20,7 +20,8 @@ Group the records by target file, then maintain an **in-flight CR-fixer registry
 
 1. **Acquire a per-file lock** so a duplicate paste in another Claude window can't spawn a competing fixer:
    ```bash
-   bash .claude/lib/session-lock.sh acquire "cr-fixer:$(printf '%s' '<path>' | sha1sum | cut -c1-12)" "$CLAUDE_SESSION_ID" --note '<path>'
+   # `sha1sum` (GNU) isn't on every platform; fall back to `shasum -a 1` (macOS/BSD).
+   bash .claude/lib/session-lock.sh acquire "cr-fixer:$(printf '%s' '<path>' | { sha1sum 2>/dev/null || shasum -a 1; } | cut -c1-12)" "$CLAUDE_SESSION_ID" --note '<path>'
    ```
    If acquire fails (exit 2), another window owns that file — skip it with a "deferring to other window" note and move on.
 2. **No in-flight fixer for that file** → spawn a fresh `coderabbit-fixer` with `run_in_background: true`, passing `CR_LOCK_KEY` + `CR_SESSION_ID` in the prompt so the fixer releases the lock on exit. Add it to the registry.

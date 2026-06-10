@@ -6,7 +6,7 @@ Big-picture view of how Waves is laid out and how a message gets from one user t
 
 Two independent npm packages live side by side. There is no workspace/root package linking them for dependencies — each is installed separately.
 
-```
+```text
 waves/
 ├── frontend/        # React 19 + Vite + Tailwind v4 (separate npm package)
 ├── backend/         # Express + Socket.IO, ES modules (separate npm package)
@@ -51,7 +51,7 @@ Because a message can arrive twice (once over P2P, once echoed by the server), t
 
 ### Message flow diagram
 
-```
+```text
    Sender (Chat.jsx)                                  Receiver (Chat.jsx)
    ─────────────────                                  ───────────────────
    handleSendMessage

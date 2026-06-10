@@ -69,6 +69,11 @@ const FORBIDDEN = [
   [/\bgit\s+push\s+(.*\s+)?(-f\b|--force\b|--force-with-lease\b)/, "git push --force"],
   [/\bgit\s+commit\b/, "git commit"],
   [/\bgit\s+config\s+(--global|--system|--local|--file|--add|--replace-all|--unset|--unset-all|--remove-section|--rename-section)\b/, "git config (write)"],
+  // Also catch the bare two-argument write form `git config <key> <value>`
+  // (e.g. `git config user.name "Alice"`). The `[^\s-]` excludes read flags
+  // like `--get`/`--list`; the trailing `\s+` requires a value to follow, so
+  // value-less reads (`git config user.name`) are not blocked.
+  [/\bgit\s+config\s+[^\s-][^\s]*\s+/, "git config (write)"],
 ];
 
 for (const [re, label] of FORBIDDEN) {

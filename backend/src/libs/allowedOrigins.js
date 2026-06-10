@@ -13,9 +13,15 @@ const DEFAULT_ORIGINS = [
   'http://localhost:5175',
   'http://localhost:5176',
   'https://waves-c53a.onrender.com',
-  '13.228.225.19',
-  '18.142.128.26',
-  '54.254.162.138',
+  // IP-based origins need an explicit scheme — the cors and Socket.IO `origin`
+  // checks match the browser `Origin` header (scheme://host[:port]), so a bare
+  // IP never matches. Allow both http and https for each.
+  'http://13.228.225.19',
+  'https://13.228.225.19',
+  'http://18.142.128.26',
+  'https://18.142.128.26',
+  'http://54.254.162.138',
+  'https://54.254.162.138',
 ];
 
 const envOrigins = (process.env.CLIENT_ORIGINS || '')

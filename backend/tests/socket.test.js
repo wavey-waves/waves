@@ -96,6 +96,38 @@ describe('socket.io room + signaling handlers', () => {
     b.disconnect()
   })
 
+  it('does NOT relay a webrtc-answer between peers that share no room', async () => {
+    const a = await connect()
+    const b = await connect()
+    a.emit('join', 'room-a')
+    b.emit('join', 'room-b')
+    await once(a, 'existing-room-users')
+    await once(b, 'existing-room-users')
+
+    const guard = never(b, 'webrtc-answer')
+    a.emit('webrtc-answer', { answer: { sdp: 'x' }, to: b.id })
+    await expect(guard).resolves.toBeUndefined()
+
+    a.disconnect()
+    b.disconnect()
+  })
+
+  it('does NOT relay a webrtc-ice-candidate between peers that share no room', async () => {
+    const a = await connect()
+    const b = await connect()
+    a.emit('join', 'room-a')
+    b.emit('join', 'room-b')
+    await once(a, 'existing-room-users')
+    await once(b, 'existing-room-users')
+
+    const guard = never(b, 'webrtc-ice-candidate')
+    a.emit('webrtc-ice-candidate', { candidate: { candidate: 'x' }, to: b.id })
+    await expect(guard).resolves.toBeUndefined()
+
+    a.disconnect()
+    b.disconnect()
+  })
+
   it('emits userLeft when a peer leaves the room', async () => {
     const a = await connect()
     const b = await connect()

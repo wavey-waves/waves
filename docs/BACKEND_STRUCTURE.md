@@ -4,7 +4,7 @@ Express + Socket.IO app, ES modules (`"type": "module"`). Conventional routes �
 
 ## Directory map
 
-```
+```text
 backend/src/
 ├── index.js                      # entry point: listens + connectDB
 ├── app.js                        # configures the shared Express app (middleware, routes, prod static, error handler)
@@ -42,7 +42,7 @@ The Express `app`, the HTTP `server`, and the Socket.IO `io` are all **created i
 
 ## Request lifecycle
 
-```
+```text
 HTTP request
   → app.js middleware: express.json → request-ip → cookieParser → cors
   → router (/api/auth | /api/messages | /api/rooms)

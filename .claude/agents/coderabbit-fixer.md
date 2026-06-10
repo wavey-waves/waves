@@ -73,7 +73,7 @@ CodeRabbit posts comments in two places; pull both or you'll silently drop fixab
    }'
    ```
 
-   Keep only `!isResolved && !isOutdated` threads whose comment `author.login` is `coderabbitai` or `coderabbitai[bot]`. Capture each comment's `databaseId` (Step 7 needs it).
+   Keep only `!isResolved && !isOutdated` threads whose comment `author.login` is `coderabbitai` or `coderabbitai[bot]`. Capture each comment's `databaseId` (Step 7 needs it). Note: `databaseId` is deprecated on GitHub's GraphQL schema (still served today); if a future schema drops it, fall back to `fullDatabaseId` or the node `id`.
 
 2. **Cover-letter review bodies** — `gh api /repos/<owner>/<repo>/pulls/<n>/reviews`, then parse the `Outside diff range comments` and `Nitpick comments` sections of each CodeRabbit review body. These have **no `databaseId`** — process them normally but skip reply-posting for them.
 
