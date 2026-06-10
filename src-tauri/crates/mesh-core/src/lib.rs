@@ -16,6 +16,7 @@
 
 pub mod error;
 pub mod identity;
+pub mod net;
 pub mod proto;
 pub mod store;
 

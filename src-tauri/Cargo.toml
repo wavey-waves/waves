@@ -24,6 +24,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2.0"
 tokio = { version = "1.52", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
+tokio-stream = "0.1"
 tracing = "0.1"
 # iroh: pinned exactly per docs/MESH.md D1 — rc churn is real, and iroh-blobs
 # 0.102.0 requires =1.0.0-rc.1. Default features pull in portmapper/metrics
