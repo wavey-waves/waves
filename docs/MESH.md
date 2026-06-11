@@ -150,10 +150,14 @@ If the latest commit on this branch is < 30 min old, another session is likely a
 
 - [x] P0.a Research + architecture synthesis (6-agent fan-out, 2026-06-10)
 - [x] P0.b Branch, hook escape hatch, this spec
-- [ ] P0.c **Hardware spike binary** (`crates/spike`): iroh mDNS discovery + 5 MB
-      iroh-blobs transfer + WiFi-Direct GO/join, with printed pass/fail per check.
-      OWNER ACTION: run on 2 Windows 11 laptops, firewalled, no internet; report
-      adapter `netsh wlan show wirelesscapabilities` output.
+- [x] P0.c **Hardware spike binary** (`crates/spike`): `waves-spike auto` runs the
+      whole pipeline (discovery → text → blob w/ throughput) with PASS/FAIL
+      summary; `waves-spike caps` reports adapter capabilities. Verified on Linux
+      loopback (2 MB blob @ 31 MB/s). Radio host/join wires in at P3.
+      OWNER ACTION (still open): run `waves-spike auto` on 2 Windows 11 laptops
+      (one with `--blob-mb 5`), firewalled, no internet — if discovery fails,
+      that confirms the firewall-rule requirement (P1.g); also run
+      `waves-spike caps` on each and report the output.
 - [x] P1.a Rust workspace scaffold: `src-tauri` app crate + `mesh-core` + Tauri config
       pointing at `frontend/` (no duplicated UI — lesson of the dead `direct-p2p` branch)
 - [x] P1.b `mesh-core`: identity + SQLite store + version vectors (unit-tested)
@@ -185,7 +189,11 @@ If the latest commit on this branch is < 30 min old, another session is likely a
       gets a serverless tauri path (local name+color → mesh_set_author +
       mesh_info → user{id: endpointId}); registered login hidden offline.
 - [ ] P1.g NSIS installer config + firewall-rule hook
-- [ ] P2.a Blob store + announce-then-pull + fetch-and-reseed in `mesh-core`
+- [x] P2.a Blob store + announce-then-pull + fetch-and-reseed in `mesh-core`
+      (iroh-blobs; FetchBlob action w/ arrival-link provenance; 10 MiB
+      auto-fetch cap; retries absorb relayers still mid-pull; real-QUIC tests
+      incl. A–B–C reseed). IPC: mesh_send_image (raw body + Rust thumbnailing),
+      mesh_export_blob (asset-protocol scope), blobReady/blobFailed events.
 - [ ] P2.b Image send/render UI: picker → thumbnail gen → announce; asset-protocol
       rendering; transfer-progress Channel
 - [ ] P3.a `radio-win`: legacy-AP GO host (vendored/modernized wifidirect-legacy-ap
