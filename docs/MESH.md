@@ -181,7 +181,10 @@ If the latest commit on this branch is < 30 min old, another session is likely a
       tauri-transport tests (dtoToUi, room mapping, mesh-starting retry,
       subscribe filtering). @tauri-apps/api stays out of the web bundle via
       dynamic import (separate lazy chunks verified in the build).
-- [ ] P1.g NSIS installer config + firewall-rule hook
+- [x] P1.g NSIS installer config + firewall-rule hook (`installer-hooks.nsh`:
+      program-scoped inbound allow on private+public profiles, idempotent,
+      removed on uninstall). Config-only on this side — validated when the
+      owner runs `cargo tauri build` on Windows and installs the `-setup.exe`.
 - [x] P2.a Blob store + announce-then-pull + fetch-and-reseed in `mesh-core`
       (iroh-blobs; FetchBlob action w/ arrival-link provenance; 10 MiB
       auto-fetch cap; retries absorb relayers still mid-pull; real-QUIC tests
