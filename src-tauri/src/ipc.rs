@@ -346,6 +346,135 @@ fn parse_hash(s: &str) -> Result<[u8; 32], String> {
     Ok(out)
 }
 
+/// Radio state (P3): at most one hosted GO and one joined SSID at a time.
+/// Per the Win11 publisher-restart bug, a host is never reused — stop drops
+/// it and a new "Host mesh" creates a fresh one.
+#[derive(Default)]
+pub struct Radio {
+    #[cfg(windows)]
+    host: std::sync::Mutex<Option<radio_win::host::LegacyApHost>>,
+    #[cfg(windows)]
+    joined: std::sync::Mutex<Option<String>>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RadioCapsDto {
+    pub supported: bool,
+    pub wifi_direct_go: bool,
+    pub wifi_direct_client: bool,
+    pub go_sta_concurrency: bool,
+}
+
+#[tauri::command]
+pub async fn radio_caps() -> Result<RadioCapsDto, String> {
+    let caps = radio_win::probe_capabilities();
+    Ok(RadioCapsDto {
+        supported: cfg!(windows),
+        wifi_direct_go: caps.wifi_direct_go,
+        wifi_direct_client: caps.wifi_direct_client,
+        go_sta_concurrency: caps.go_sta_concurrency,
+    })
+}
+
+/// Host a forest-mode mesh for `code`: derives SSID/PSK (D2), starts the
+/// legacy-AP GO, and resolves once the OS reports Started. Returns the SSID
+/// joiners will see.
+#[tauri::command]
+pub async fn radio_host(state: State<'_, Radio>, code: String) -> Result<String, String> {
+    #[cfg(windows)]
+    {
+        let (ssid, passphrase) = radio_win::creds::derive_credentials(&code);
+        let ssid_for_host = ssid.clone();
+        let host = tauri::async_runtime::spawn_blocking(move || {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let host = radio_win::host::LegacyApHost::start(&ssid_for_host, &passphrase, tx)
+                .map_err(|e| e.to_string())?;
+            match rx.recv_timeout(std::time::Duration::from_secs(15)) {
+                Ok(radio_win::RadioEvent::ApStarted) => Ok(host),
+                Ok(radio_win::RadioEvent::ApAborted(detail)) => {
+                    Err(format!("radio refused to start: {detail} (is Mobile Hotspot on?)"))
+                }
+                Ok(_) => Err("unexpected radio event during startup".into()),
+                Err(_) => Err("timed out waiting for the access point to start".into()),
+            }
+        })
+        .await
+        .map_err(|e| e.to_string())??;
+        *state.host.lock().expect("radio host lock") = Some(host);
+        Ok(ssid)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (state, code);
+        Err("radio-requires-windows".into())
+    }
+}
+
+#[tauri::command]
+pub async fn radio_stop_host(state: State<'_, Radio>) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        // Dropping the host stops the publisher and releases the clients.
+        state.host.lock().expect("radio host lock").take();
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = state;
+        Err("radio-requires-windows".into())
+    }
+}
+
+/// Join the forest mesh hosted under `code` (blocking scan + connect, so it
+/// runs on a blocking thread; ~25 s worst case).
+#[tauri::command]
+pub async fn radio_join(state: State<'_, Radio>, code: String) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let (ssid, passphrase) = radio_win::creds::derive_credentials(&code);
+        let ssid_for_join = ssid.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            radio_win::join::join(
+                &ssid_for_join,
+                &passphrase,
+                std::time::Duration::from_secs(25),
+            )
+            .map_err(|e| e.to_string())
+        })
+        .await
+        .map_err(|e| e.to_string())??;
+        *state.joined.lock().expect("radio join lock") = Some(ssid);
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (state, code);
+        Err("radio-requires-windows".into())
+    }
+}
+
+#[tauri::command]
+pub async fn radio_leave(state: State<'_, Radio>) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let ssid = state.joined.lock().expect("radio join lock").take();
+        if let Some(ssid) = ssid {
+            tauri::async_runtime::spawn_blocking(move || {
+                radio_win::join::leave(&ssid).map_err(|e| e.to_string())
+            })
+            .await
+            .map_err(|e| e.to_string())??;
+        }
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = state;
+        Err("radio-requires-windows".into())
+    }
+}
+
 /// Stream mesh events into the webview. The channel dies when the page
 /// reloads; the forwarder task notices the send failure and exits, and the
 /// reloaded page simply subscribes again.

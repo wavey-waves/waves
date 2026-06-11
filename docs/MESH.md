@@ -194,8 +194,16 @@ If the latest commit on this branch is < 30 min old, another session is likely a
       tracking (blobReady/blobFailed events) and full-res swap via
       mesh_export_blob + convertFileSrc. Byte-level transfer progress deferred
       (pulsing pending state only).
-- [ ] P3.a `radio-win`: legacy-AP GO host (vendored/modernized wifidirect-legacy-ap
-      pattern, windows-rs 0.6x) + WlanConnect joiner + capability probe
+- [ ] P3.a `radio-win`: legacy-AP GO host (windows-rs 0.62, written fresh from
+      the API docs — see mesh-notes/winrt-radio-api.md) + WlanConnect joiner
+      (profile XML, ACM connect-complete wait, cleanup-on-leave) + netsh
+      capability probe + room-code credential derivation (D2). IPC commands
+      radio_caps/host/stop_host/join/leave landed.
+      STATUS: pure parts (creds, caps parser) tested on Linux; the
+      cfg(windows) host/join modules have only been compiled by the CI
+      mesh-windows job — check this box when that job is green, and note
+      that real radio behavior (GO up, join works, ICS subnet) remains
+      OWNER ACTION via `waves-spike` on hardware.
 - [ ] P3.b Host/Join UI: SSID/PSK derived from room code; first-class errors
       ("Mobile Hotspot is on", "WiFi is off"); GO liveness watchdog
 - [ ] P4.a GO+STA chaining ("Extend mesh"): bridge nodes hold iroh links on both

@@ -8,6 +8,7 @@ fn main() {
 
     tauri::Builder::default()
         .manage(ipc::Mesh::default())
+        .manage(ipc::Radio::default())
         .setup(|app| {
             ipc::start(app.handle().clone());
             Ok(())
@@ -21,6 +22,11 @@ fn main() {
             ipc::mesh_history,
             ipc::mesh_peers,
             ipc::mesh_subscribe,
+            ipc::radio_caps,
+            ipc::radio_host,
+            ipc::radio_stop_host,
+            ipc::radio_join,
+            ipc::radio_leave,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
