@@ -103,8 +103,10 @@ impl From<&PeerInfo> for PeerDto {
     }
 }
 
+// rename_all covers variant names only; rename_all_fields is what makes
+// struct-variant fields (origin_id, ...) camelCase on the wire.
 #[derive(Serialize, Clone)]
-#[serde(rename_all = "camelCase", tag = "type")]
+#[serde(rename_all = "camelCase", rename_all_fields = "camelCase", tag = "type")]
 pub enum MeshEventDto {
     Message { message: MessageDto },
     PeerUp { peer: PeerDto },

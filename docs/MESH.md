@@ -174,20 +174,13 @@ If the latest commit on this branch is < 30 min old, another session is likely a
       MSVC cross-check dies in ring's build script needing lib.exe). The CI
       `mesh-windows` job added in `.github/workflows/ci.yml` is the gate: check
       this box only once that job is green on this code (fix what it reports).
-- [ ] P1.f Frontend transport seam: `src/transport/` with web + tauri implementations;
-      Chat.jsx consumes the seam; web build behavior unchanged (gates prove it).
-      Implementation contract: `src/transport/index.js` exposes `isTauri()` +
-      `createTransport({user})` (dynamic import keeps @tauri-apps/api out of the
-      web bundle); both transports implement {kind, resolveRoom, fetchHistory,
-      connect({roomName, handlers}), send({roomName, payload}), disconnect} —
-      web.js lifts the socket.io/WebRTC/axios logic out of Chat.jsx verbatim
-      (REALTIME.md dedup invariant is law), tauri.js maps the camelCase
-      MessageDto/MeshEventDto from `src-tauri/src/ipc.rs` to the UI shape
-      (id→_id, originId→senderId._id, createdAtMs→ISO createdAt), retries the
-      "mesh-starting" rejection with backoff, and resolves rooms offline-side
-      as: custom code → `mesh-<CODE>`, global/network → `mesh-global`. JoinRoom
-      gets a serverless tauri path (local name+color → mesh_set_author +
-      mesh_info → user{id: endpointId}); registered login hidden offline.
+- [x] P1.f Frontend transport seam: `src/transport/{index,web,tauri}.js`; Chat.jsx
+      consumes the seam (797→~500 lines), JoinRoom gets the serverless tauri
+      path (local name+color → mesh_set_author + mesh_info → user{id:
+      endpointId}). Web behavior pinned by the untouched 63-test suite; 12 new
+      tauri-transport tests (dtoToUi, room mapping, mesh-starting retry,
+      subscribe filtering). @tauri-apps/api stays out of the web bundle via
+      dynamic import (separate lazy chunks verified in the build).
 - [ ] P1.g NSIS installer config + firewall-rule hook
 - [x] P2.a Blob store + announce-then-pull + fetch-and-reseed in `mesh-core`
       (iroh-blobs; FetchBlob action w/ arrival-link provenance; 10 MiB
