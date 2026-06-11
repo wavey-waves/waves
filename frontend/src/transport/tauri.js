@@ -122,6 +122,11 @@ export function createTransport() {
           handlers.onServerMessage(dtoToUi(event.message));
         } else if (event.type === "peerDown") {
           handlers.onUserLeft({ socketId: event.originId ?? event.origin_id });
+        } else if (event.type === "blobReady") {
+          // Blob transfers are mesh-wide (content-addressed), not room-scoped.
+          handlers.onBlobReady?.(event.hash);
+        } else if (event.type === "blobFailed") {
+          handlers.onBlobFailed?.(event.hash, event.reason);
         }
         // peerUp feeds the peer list in a later phase; no chat handler yet.
       };
@@ -136,6 +141,26 @@ export function createTransport() {
       // The caller renders this returned message; the subscribe echo then
       // dedups on the canonical _id (docs/MESH.md L3 dedup invariant).
       return dtoToUi(dto);
+    },
+
+    // Send an image (docs/MESH.md P2.b). `bytes` (ArrayBuffer/Uint8Array)
+    // travels as the raw invoke body — never JSON — with room/mime as
+    // request headers; ipc.rs thumbnails it and returns the announcement.
+    async sendImage({ roomName, bytes, mime }) {
+      const dto = await withMeshRetry(() =>
+        invoke("mesh_send_image", bytes, {
+          headers: { room: roomName, mime },
+        })
+      );
+      return dtoToUi(dto);
+    },
+
+    // Export a downloaded blob into the asset-protocol scope; resolves the
+    // absolute file path (render via convertFileSrc). Rejects "blob-not-ready"
+    // while the transfer is still in flight — that is not retried here, the
+    // blobReady event tells the UI when to try again.
+    async exportBlob({ hash, mime }) {
+      return withMeshRetry(() => invoke("mesh_export_blob", { hash, mime }));
     },
 
     disconnect() {

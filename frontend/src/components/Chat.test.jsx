@@ -290,6 +290,14 @@ describe('Chat', () => {
     })
   })
 
+  it('does not show the attach-image button on the web transport (mesh-only UI)', async () => {
+    renderChat()
+    await waitFor(() => expect(io).toHaveBeenCalled())
+    expect(
+      screen.queryByRole('button', { name: /Attach image/i })
+    ).not.toBeInTheDocument()
+  })
+
   it('renders the header with the username and room title', async () => {
     renderChat()
     await waitFor(() => expect(io).toHaveBeenCalled())

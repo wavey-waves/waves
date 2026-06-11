@@ -155,6 +155,116 @@ describe('mesh transport', () => {
     expect(invoke).toHaveBeenCalledTimes(1)
   })
 
+  it('sendImage invokes mesh_send_image with raw bytes and room/mime headers', async () => {
+    const imageDto = {
+      ...textDto,
+      kind: 'image',
+      text: undefined,
+      blobHash: 'blob-hash',
+      blobSize: 4096,
+      blobMime: 'image/png',
+      thumbB64: 'AAAA',
+    }
+    invoke.mockResolvedValueOnce(imageDto)
+    const transport = createTransport({})
+    const bytes = new Uint8Array([1, 2, 3]).buffer
+
+    const sent = await transport.sendImage({
+      roomName: 'mesh-global',
+      bytes,
+      mime: 'image/png',
+    })
+
+    // Contract: bytes are the raw invoke body (never JSON), metadata rides
+    // as request headers — see mesh_send_image in src-tauri/src/ipc.rs.
+    expect(invoke).toHaveBeenCalledWith('mesh_send_image', bytes, {
+      headers: { room: 'mesh-global', mime: 'image/png' },
+    })
+    expect(sent.kind).toBe('image')
+    expect(sent._id).toBe('blake3-abc')
+    expect(sent.blob).toEqual({
+      hash: 'blob-hash',
+      size: 4096,
+      mime: 'image/png',
+      thumbB64: 'AAAA',
+    })
+  })
+
+  it('sendImage retries the "mesh-starting" rejection', async () => {
+    vi.useFakeTimers()
+    const imageDto = { ...textDto, kind: 'image', blobHash: 'h', blobSize: 1, blobMime: 'image/png', thumbB64: 'AA' }
+    invoke.mockRejectedValueOnce('mesh-starting').mockResolvedValueOnce(imageDto)
+    const transport = createTransport({})
+
+    const promise = transport.sendImage({
+      roomName: 'mesh-global',
+      bytes: new Uint8Array([1]).buffer,
+      mime: 'image/png',
+    })
+    await vi.runAllTimersAsync()
+
+    expect((await promise)._id).toBe('blake3-abc')
+    expect(invoke).toHaveBeenCalledTimes(2)
+  })
+
+  it('exportBlob invokes mesh_export_blob and returns the exported path', async () => {
+    invoke.mockResolvedValueOnce('/appdata/blobs/export/abc.png')
+    const transport = createTransport({})
+
+    await expect(
+      transport.exportBlob({ hash: 'abc', mime: 'image/png' })
+    ).resolves.toBe('/appdata/blobs/export/abc.png')
+    expect(invoke).toHaveBeenCalledWith('mesh_export_blob', {
+      hash: 'abc',
+      mime: 'image/png',
+    })
+  })
+
+  it('exportBlob surfaces "blob-not-ready" without retrying', async () => {
+    invoke.mockRejectedValue('blob-not-ready')
+    const transport = createTransport({})
+
+    await expect(
+      transport.exportBlob({ hash: 'abc', mime: 'image/png' })
+    ).rejects.toBe('blob-not-ready')
+    expect(invoke).toHaveBeenCalledTimes(1)
+  })
+
+  it('forwards blobReady/blobFailed events to the optional handlers', async () => {
+    invoke.mockResolvedValue(undefined)
+    const transport = createTransport({})
+    const handlers = {
+      onServerMessage: vi.fn(),
+      onUserLeft: vi.fn(),
+      onBlobReady: vi.fn(),
+      onBlobFailed: vi.fn(),
+    }
+
+    await transport.connect({ roomName: 'mesh-global', handlers })
+    const channel = invoke.mock.calls.find(([cmd]) => cmd === 'mesh_subscribe')[1].channel
+
+    // Blob events are mesh-wide (content-addressed), not room-filtered.
+    channel.onmessage({ type: 'blobReady', hash: 'hash-1' })
+    expect(handlers.onBlobReady).toHaveBeenCalledWith('hash-1')
+
+    channel.onmessage({ type: 'blobFailed', hash: 'hash-2', reason: 'exceeds-autofetch-cap' })
+    expect(handlers.onBlobFailed).toHaveBeenCalledWith('hash-2', 'exceeds-autofetch-cap')
+  })
+
+  it('tolerates blob events when the optional handlers are not provided', async () => {
+    invoke.mockResolvedValue(undefined)
+    const transport = createTransport({})
+    const handlers = { onServerMessage: vi.fn(), onUserLeft: vi.fn() }
+
+    await transport.connect({ roomName: 'mesh-global', handlers })
+    const channel = invoke.mock.calls.find(([cmd]) => cmd === 'mesh_subscribe')[1].channel
+
+    expect(() => {
+      channel.onmessage({ type: 'blobReady', hash: 'x' })
+      channel.onmessage({ type: 'blobFailed', hash: 'x', reason: 'r' })
+    }).not.toThrow()
+  })
+
   it('fetchHistory maps every MessageDto in the result', async () => {
     invoke.mockResolvedValueOnce([textDto, { ...textDto, id: 'blake3-def' }])
     const transport = createTransport({})

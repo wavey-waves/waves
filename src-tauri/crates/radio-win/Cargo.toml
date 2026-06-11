@@ -10,3 +10,19 @@ repository.workspace = true
 [dependencies]
 thiserror.workspace = true
 tracing.workspace = true
+
+[target.'cfg(windows)'.dependencies.windows]
+version = "0.62"
+features = [
+    # HOST (WinRT legacy-AP publisher)
+    "Devices_WiFiDirect",
+    "Security_Credentials",
+    "Foundation",
+    # ConnectionRequested → WiFiDirectDevice lifetime management
+    "Devices_Enumeration",
+    "Foundation_Collections",
+    "Networking",
+    # JOIN (Win32 WLAN)
+    "Win32_NetworkManagement_WiFi",
+    "Win32_Foundation",
+]

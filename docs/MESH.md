@@ -167,13 +167,12 @@ If the latest commit on this branch is < 30 min old, another session is likely a
 - [x] P1.d `mesh-core`: flood plane + anti-entropy plane — sans-IO engine, multi-node
       tests over in-memory links (A–B–C relay, diamond dedup, TTL+sync convergence,
       late joiner, partition heal, forgery rejection, restart persistence)
-- [ ] P1.e Tauri IPC: commands (send, history, join-room) + Channel streams
-      (messages, peers) + capability file.
-      STATUS: code landed (`src-tauri/src/ipc.rs`, wired in `main.rs`) but has
-      NEVER been compiled — Linux can't build the app crate (GTK missing, and
-      MSVC cross-check dies in ring's build script needing lib.exe). The CI
-      `mesh-windows` job added in `.github/workflows/ci.yml` is the gate: check
-      this box only once that job is green on this code (fix what it reports).
+- [x] P1.e Tauri IPC: commands (info/set_author/send_text/send_image/
+      export_blob/history/peers/subscribe) + Channel event stream + capability
+      file. Verified by the CI `mesh-windows` job (full workspace check + tests
+      green on windows-latest, run 27345865494) after two fixes it caught:
+      the wmi/windows-core mixed pairing and the missing `protocol-asset`
+      tauri feature.
 - [x] P1.f Frontend transport seam: `src/transport/{index,web,tauri}.js`; Chat.jsx
       consumes the seam (797→~500 lines), JoinRoom gets the serverless tauri
       path (local name+color → mesh_set_author + mesh_info → user{id:

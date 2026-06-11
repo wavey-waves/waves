@@ -247,6 +247,17 @@ export function createTransport() {
       });
     },
 
+    // Image chat is mesh-only (docs/MESH.md P2.b): it needs the desktop blob
+    // store + asset protocol. Chat gates the attach UI on transport.kind, so
+    // these only fire if that gate regresses — fail loudly, don't drop data.
+    async sendImage() {
+      throw new Error("images-not-supported-on-web");
+    },
+
+    async exportBlob() {
+      throw new Error("images-not-supported-on-web");
+    },
+
     disconnect() {
       if (socket) {
         if (currentRoom) {

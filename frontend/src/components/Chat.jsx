@@ -5,6 +5,12 @@ import "react-toastify/dist/ReactToastify.css";
 import iconImage from "../assets/icon.png";
 import { createTransport } from "../transport";
 
+// Mesh image chat (docs/MESH.md P2.b). Client-side cap on what we hand the
+// mesh; receivers have their own 10 MiB auto-fetch cap on top of this.
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
+// Thumbnails are JPEG-encoded by the Rust side regardless of source format.
+const THUMB_PREFIX = "data:image/jpeg;base64,";
+
 function Chat({ roomType, roomCode, user, roomData }) {
   // Fix roomType detection for custom rooms
   const actualRoomType = roomType || (roomCode ? 'custom' : 'global');
@@ -20,6 +26,17 @@ function Chat({ roomType, roomCode, user, roomData }) {
   // this component keeps the message state, dedup, and rendering.
   const transportRef = useRef(null);
   const processedMessageIds = useRef(new Set());
+
+  // Mesh image chat (P2.b): the attach UI is gated on transport.kind === "mesh".
+  const [transportKind, setTransportKind] = useState(null);
+  const [imageSending, setImageSending] = useState(false);
+  // blob hash → { status: "ready", url } | { status: "failed", reason };
+  // absent = pending (thumbnail only, waiting on the blob transfer).
+  const [blobStates, setBlobStates] = useState({});
+  const fileInputRef = useRef(null);
+  const blobMimeRef = useRef(new Map()); // hash → mime, for event-driven exports
+  const blobProbedRef = useRef(new Set()); // hashes probed once on arrival
+  const blobExportsInFlightRef = useRef(new Set());
 
 
 
@@ -87,6 +104,49 @@ function Chat({ roomType, roomCode, user, roomData }) {
     setMessages((prevMessages) => [...prevMessages, message]);
   };
 
+  // Try to export a mesh blob to the asset protocol and record its URL
+  // (P2.b). A "blob-not-ready" rejection just means the transfer is still in
+  // flight — the message keeps its thumbnail until onBlobReady retries with
+  // force. Probes are one-shot per hash so history re-renders stay cheap.
+  const requestBlobExport = async (hash, mime, { force = false } = {}) => {
+    const transport = transportRef.current;
+    if (!hash || typeof transport?.exportBlob !== "function") return;
+    if (!force && blobProbedRef.current.has(hash)) return;
+    if (blobExportsInFlightRef.current.has(hash)) return;
+    blobProbedRef.current.add(hash);
+    blobExportsInFlightRef.current.add(hash);
+    try {
+      const path = await transport.exportBlob({ hash, mime });
+      // Lazy so @tauri-apps/api stays out of the web bundle (P1.f seam rule);
+      // this path only runs under the mesh transport.
+      const { convertFileSrc } = await import("@tauri-apps/api/core");
+      const url = convertFileSrc(path);
+      setBlobStates((prev) =>
+        prev[hash]?.status === "ready"
+          ? prev
+          : { ...prev, [hash]: { status: "ready", url } }
+      );
+    } catch (error) {
+      if (error !== "blob-not-ready" && error?.message !== "blob-not-ready") {
+        console.error("Blob export error:", error);
+      }
+    } finally {
+      blobExportsInFlightRef.current.delete(hash);
+    }
+  };
+
+  // Probe blob availability once per image message: the sender's own blobs
+  // and already-downloaded history blobs resolve immediately; everything else
+  // stays pending until the blobReady/blobFailed events flip it.
+  useEffect(() => {
+    for (const message of messages) {
+      const blob = message.kind === "image" ? message.blob : null;
+      if (!blob?.hash) continue;
+      blobMimeRef.current.set(blob.hash, blob.mime);
+      requestBlobExport(blob.hash, blob.mime);
+    }
+  }, [messages]);
+
 
   // Setup transport connection and fetch initial data
   useEffect(() => {
@@ -112,6 +172,7 @@ function Chat({ roomType, roomCode, user, roomData }) {
         const transport = await createTransport({ user });
         if (cancelled) return;
         transportRef.current = transport;
+        setTransportKind(transport.kind);
 
         const resolved = await transport.resolveRoom({
           roomType: actualRoomType,
@@ -138,6 +199,20 @@ function Chat({ roomType, roomCode, user, roomData }) {
             onUserLeft: () => {
               toast.warn("A user has left the room.");
             },
+            // Mesh blob lifecycle (P2.b): a finished download means the
+            // full-res asset can be exported and swapped in for the thumb.
+            onBlobReady: (hash) => {
+              const mime = blobMimeRef.current.get(hash);
+              // No mime means the announcing message hasn't landed yet; the
+              // arrival probe in the messages effect will pick it up then.
+              if (mime !== undefined) requestBlobExport(hash, mime, { force: true });
+            },
+            onBlobFailed: (hash, reason) => {
+              setBlobStates((prev) => ({
+                ...prev,
+                [hash]: { status: "failed", reason },
+              }));
+            },
             onError: (error) => {
               console.error("Socket error:", error);
               toast.error("Connection error. Please try refreshing the page.");
@@ -160,12 +235,16 @@ function Chat({ roomType, roomCode, user, roomData }) {
     // Cleanup: the transport owns the socket/peer (or mesh channel) teardown;
     // the processed-id Set has a stable identity, so snapshot it here.
     const processedMessages = processedMessageIds.current;
+    const probedBlobs = blobProbedRef.current;
     return () => {
       cancelled = true;
       transportRef.current?.disconnect();
       transportRef.current = null;
-      // Clear for a clean state on next run
+      // Clear for a clean state on next run. Blob probes must also reset:
+      // a blobReady event missed while disconnected never re-fires, so the
+      // next connection has to probe history blobs again.
       processedMessages.clear();
+      probedBlobs.clear();
     };
   }, [user, actualRoomType, roomCode]);
 
@@ -241,6 +320,42 @@ function Chat({ roomType, roomCode, user, roomData }) {
     } catch (error) {
       toast.error("Failed to send message to server.");
       console.error("Server send error:", error);
+    }
+  };
+
+  // Mesh-only image send (P2.b): raw bytes go to the Rust side, which
+  // thumbnails + announces and returns the canonical image message. The
+  // subscribe echo dedups on its _id like any other mesh message.
+  const handleImagePick = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    if (file.size > MAX_IMAGE_BYTES) {
+      toast.error("Image is too large (max 25 MB).");
+      return;
+    }
+    const transport = transportRef.current;
+    if (typeof transport?.sendImage !== "function") return;
+    setImageSending(true);
+    try {
+      const bytes = await file.arrayBuffer();
+      const sent = await transport.sendImage({
+        roomName: roomInfo?.roomName || "mesh-global",
+        bytes,
+        mime: file.type,
+      });
+      addMessage(sent);
+      // The sender already holds the blob — resolve the full-res asset now
+      // instead of waiting for a blobReady event that is meant for receivers.
+      if (sent?.blob?.hash) {
+        blobMimeRef.current.set(sent.blob.hash, sent.blob.mime);
+        requestBlobExport(sent.blob.hash, sent.blob.mime, { force: true });
+      }
+    } catch (error) {
+      toast.error("Failed to send image.");
+      console.error("Mesh image send error:", error);
+    } finally {
+      setImageSending(false);
     }
   };
 
@@ -440,6 +555,12 @@ function Chat({ roomType, roomCode, user, roomData }) {
               const senderName = isCurrentUser ? user.username : message.senderId.userName;
               const senderColor = isCurrentUser ? colors.userColor : message.senderId.color;
 
+              // Mesh image messages (P2.b): thumbnail renders immediately;
+              // blobStates upgrades it to the full-res asset URL when ready.
+              const blob = message.kind === "image" ? message.blob : null;
+              const blobState = blob ? blobStates[blob.hash] : null;
+              const thumbSrc = blob ? `${THUMB_PREFIX}${blob.thumbB64}` : null;
+
 
               return (
                 <div
@@ -465,9 +586,38 @@ function Chat({ roomType, roomCode, user, roomData }) {
 
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <p className="text-white/90 text-sm sm:text-base break-words text-left">
-                          {message.text}
-                        </p>
+                        {blob ? (
+                          <div
+                            className={`relative my-1 overflow-hidden rounded-xl ${
+                              !blobState ? "animate-pulse ring-1 ring-white/40" : ""
+                            }`}
+                          >
+                            <img
+                              src={blobState?.status === "ready" ? blobState.url : thumbSrc}
+                              alt="Shared image"
+                              className="max-h-60 rounded-xl object-cover"
+                              onError={(e) => {
+                                // Full-res asset failed to load — fall back
+                                // to the inline thumbnail that always works.
+                                if (e.currentTarget.src !== thumbSrc) {
+                                  e.currentTarget.src = thumbSrc;
+                                }
+                              }}
+                            />
+                            {blobState?.status === "failed" && (
+                              <span className="absolute bottom-1 left-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] text-white/80">
+                                full image unavailable:{" "}
+                                {blobState.reason === "exceeds-autofetch-cap"
+                                  ? "too large for auto-download"
+                                  : blobState.reason}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-white/90 text-sm sm:text-base break-words text-left">
+                            {message.text}
+                          </p>
+                        )}
                       </div>
 
 
@@ -524,6 +674,45 @@ function Chat({ roomType, roomCode, user, roomData }) {
                   </span>
                 )}
               </div>
+              {transportKind === "mesh" && (
+                <>
+                  {/* Hidden picker behind the attach button (mesh only, P2.b) */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    className="hidden"
+                    aria-label="Image file"
+                    onChange={handleImagePick}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={imageSending}
+                    aria-label="Attach image"
+                    title="Send an image"
+                    className={`px-3 py-2 bg-gradient-to-r ${colors.button} rounded-xl text-white hover:opacity-90 transition-opacity font-medium text-sm sm:text-base flex items-center ${
+                      imageSending ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                    style={{ height: "40px", minHeight: "40px", alignSelf: "start" }}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className={`h-5 w-5 ${imageSending ? "animate-pulse" : ""}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
+                  </button>
+                </>
+              )}
               <button
                 type="submit"
                 disabled={
