@@ -189,8 +189,11 @@ If the latest commit on this branch is < 30 min old, another session is likely a
       auto-fetch cap; retries absorb relayers still mid-pull; real-QUIC tests
       incl. A–B–C reseed). IPC: mesh_send_image (raw body + Rust thumbnailing),
       mesh_export_blob (asset-protocol scope), blobReady/blobFailed events.
-- [ ] P2.b Image send/render UI: picker → thumbnail gen → announce; asset-protocol
-      rendering; transfer-progress Channel
+- [x] P2.b Image send/render UI: mesh-mode attach button → mesh_send_image
+      (raw body + Rust thumbnailing); thumbnail-first render with blob-state
+      tracking (blobReady/blobFailed events) and full-res swap via
+      mesh_export_blob + convertFileSrc. Byte-level transfer progress deferred
+      (pulsing pending state only).
 - [ ] P3.a `radio-win`: legacy-AP GO host (vendored/modernized wifidirect-legacy-ap
       pattern, windows-rs 0.6x) + WlanConnect joiner + capability probe
 - [ ] P3.b Host/Join UI: SSID/PSK derived from room code; first-class errors
