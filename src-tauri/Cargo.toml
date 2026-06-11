@@ -48,8 +48,11 @@ repository.workspace = true
 tauri-build = { version = "2.6", features = [] }
 
 [dependencies]
-tauri = { version = "2.11", features = [] }
+# protocol-asset must match the assetProtocol allowlist in tauri.conf.json
+# (tauri-build enforces the pairing at compile time).
+tauri = { version = "2.11", features = ["protocol-asset"] }
 base64.workspace = true
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif"] }
 mesh-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true

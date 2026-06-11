@@ -25,10 +25,11 @@ use iroh_mdns_address_lookup::{DiscoveryEvent, MdnsAddressLookup};
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio_stream::StreamExt;
 
+use crate::blobs::{BlobService, BLOBS_ALPN, MAX_AUTOFETCH_BYTES};
 use crate::error::Result;
 use crate::identity::DeviceIdentity;
 use crate::proto::engine::{Action, LinkId, MeshEngine, MeshEvent, PeerInfo};
-use crate::proto::message::{Author, Body, SignedMessage};
+use crate::proto::message::{Author, BlobRef, Body, SignedMessage};
 use crate::proto::wire::Frame;
 use crate::store::Store;
 
@@ -61,12 +62,16 @@ pub struct MeshNode {
 struct Shared {
     endpoint: Endpoint,
     own_id: EndpointId,
+    blobs: BlobService,
     engine: Mutex<MeshEngine>,
     /// Live links: id → writer queue + peer identity.
     links: Mutex<HashMap<LinkId, link::LinkHandle>>,
     /// Peers with a dial currently in flight (mDNS and the beacon both fire
     /// repeatedly; this stops a thundering herd of dials to one peer).
     dialing: Mutex<HashSet<EndpointId>>,
+    /// Blob hashes with a pull in flight (flood + sync can both announce
+    /// the same blob).
+    fetching: Mutex<HashSet<[u8; 32]>>,
     events: broadcast::Sender<MeshEvent>,
     next_link: AtomicU64,
 }
@@ -76,6 +81,7 @@ impl MeshNode {
         let identity = DeviceIdentity::load_or_create(&config.data_dir)?;
         let store = Store::open(&config.data_dir.join("mesh.db"))?;
         let engine = MeshEngine::new(identity.clone(), config.author.clone(), store)?;
+        let blobs = BlobService::open_fs(&config.data_dir.join("blobs")).await?;
 
         let secret = SecretKey::from_bytes(&identity.secret_bytes());
         let own_id = secret.public();
@@ -86,7 +92,7 @@ impl MeshNode {
         let endpoint = Endpoint::builder(presets::Minimal)
             .secret_key(secret)
             .relay_mode(RelayMode::Disabled)
-            .alpns(vec![MESH_ALPN.to_vec()])
+            .alpns(vec![MESH_ALPN.to_vec(), BLOBS_ALPN.to_vec()])
             .address_lookup(mdns.clone())
             .bind()
             .await
@@ -96,24 +102,46 @@ impl MeshNode {
         let inner = Arc::new(Shared {
             endpoint,
             own_id,
+            blobs,
             engine: Mutex::new(engine),
             links: Mutex::new(HashMap::new()),
             dialing: Mutex::new(HashSet::new()),
+            fetching: Mutex::new(HashSet::new()),
             events,
             next_link: AtomicU64::new(1),
         });
 
         let mut tasks = Vec::new();
 
-        // Accept loop: inbound connections become links.
+        // Accept loop: dispatch inbound connections by negotiated ALPN —
+        // mesh links become engine links, blob connections are served by
+        // the iroh-blobs protocol handler (this is the reseed serving side).
         {
             let shared = inner.clone();
+            let handler = shared.blobs.protocol_handler();
             tasks.push(tokio::spawn(async move {
                 while let Some(incoming) = shared.endpoint.accept().await {
                     match incoming.await {
+                        Ok(conn) if conn.alpn() == MESH_ALPN => {
+                            Shared::adopt_connection(
+                                shared.clone(),
+                                conn,
+                                link::Role::Acceptor,
+                                None,
+                            )
+                            .await
+                        }
+                        Ok(conn) if conn.alpn() == BLOBS_ALPN => {
+                            let handler = handler.clone();
+                            tokio::spawn(async move {
+                                use iroh::protocol::ProtocolHandler;
+                                if let Err(e) = handler.accept(conn).await {
+                                    tracing::debug!("blob serve failed: {e}");
+                                }
+                            });
+                        }
                         Ok(conn) => {
-                            Shared::adopt_connection(shared.clone(), conn, link::Role::Acceptor)
-                                .await
+                            tracing::debug!(alpn = ?conn.alpn(), "unknown ALPN refused")
                         }
                         Err(e) => tracing::debug!("inbound connection failed: {e}"),
                     }
@@ -192,6 +220,45 @@ impl MeshNode {
         self.compose(room, Body::Text { text }).await
     }
 
+    /// Add an image to the blob store and announce it (docs/MESH.md L4:
+    /// the message floods with metadata + thumbnail; receivers pull bytes).
+    pub async fn send_image(
+        &self,
+        room: &str,
+        bytes: Vec<u8>,
+        mime: String,
+        thumb: Vec<u8>,
+    ) -> Result<SignedMessage> {
+        let size = bytes.len() as u64;
+        let hash = self.inner.blobs.add_bytes(bytes).await?;
+        self.compose(
+            room,
+            Body::Image {
+                blob: BlobRef {
+                    hash,
+                    size,
+                    mime,
+                    thumb,
+                },
+            },
+        )
+        .await
+    }
+
+    pub async fn has_blob(&self, hash: &[u8; 32]) -> bool {
+        self.inner.blobs.has(hash).await
+    }
+
+    pub async fn blob_bytes(&self, hash: &[u8; 32]) -> Result<Vec<u8>> {
+        self.inner.blobs.bytes(hash).await
+    }
+
+    /// Export a completed blob to an absolute path (for asset-protocol
+    /// rendering — bytes never cross the IPC).
+    pub async fn export_blob(&self, hash: &[u8; 32], target: &std::path::Path) -> Result<u64> {
+        self.inner.blobs.export(hash, target).await
+    }
+
     pub async fn compose(&self, room: &str, body: Body) -> Result<SignedMessage> {
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -234,6 +301,7 @@ impl Shared {
         self: Arc<Self>,
         conn: iroh::endpoint::Connection,
         role: link::Role,
+        dialed_addr: Option<EndpointAddr>,
     ) {
         let link_id = self.next_link.fetch_add(1, Ordering::Relaxed);
         let peer = conn.remote_id();
@@ -244,6 +312,7 @@ impl Shared {
             link_id,
             link::LinkHandle {
                 peer,
+                addr: dialed_addr,
                 sender: tx,
             },
         );
@@ -265,10 +334,13 @@ impl Shared {
         if !self.dialing.lock().await.insert(peer) {
             return; // dial already in flight
         }
-        let result = self.endpoint.connect(addr, MESH_ALPN).await;
+        let result = self.endpoint.connect(addr.clone(), MESH_ALPN).await;
         self.dialing.lock().await.remove(&peer);
         match result {
-            Ok(conn) => self.adopt_connection(conn, link::Role::Dialer).await,
+            Ok(conn) => {
+                self.adopt_connection(conn, link::Role::Dialer, Some(addr))
+                    .await
+            }
             Err(e) => tracing::debug!(peer = %peer, "dial failed: {e}"),
         }
     }
@@ -283,7 +355,7 @@ impl Shared {
 
     /// Dispatch engine actions. Engine lock must NOT be held by the caller:
     /// queue sends can await on backpressure.
-    async fn apply(&self, actions: Vec<Action>) {
+    async fn apply(self: &Arc<Self>, actions: Vec<Action>) {
         for action in actions {
             match action {
                 Action::Emit(event) => {
@@ -301,8 +373,86 @@ impl Shared {
                         }
                     }
                 }
+                Action::FetchBlob { via, hash, size } => self.fetch_blob(via, hash, size).await,
             }
         }
+    }
+
+    /// Execute a FetchBlob action: pull the blob from the neighbor that
+    /// delivered the announcement, with retries (the relayer may itself
+    /// still be mid-pull — per-hop distribution is eventually consistent).
+    async fn fetch_blob(self: &Arc<Self>, via: LinkId, hash: [u8; 32], size: u64) {
+        if size > MAX_AUTOFETCH_BYTES {
+            let _ = self.events.send(MeshEvent::BlobFailed {
+                hash,
+                reason: "exceeds-autofetch-cap".into(),
+            });
+            return;
+        }
+        if self.blobs.has(&hash).await {
+            let _ = self.events.send(MeshEvent::BlobReady { hash });
+            return;
+        }
+        if !self.fetching.lock().await.insert(hash) {
+            return; // pull already in flight
+        }
+
+        // Prefer the address we actually dialed (works without any lookup
+        // service, e.g. beacon-discovered peers and tests); fall back to a
+        // bare-id dial, which resolves through mDNS.
+        let target: Option<EndpointAddr> = {
+            let links = self.links.lock().await;
+            links
+                .get(&via)
+                .map(|l| l.addr.clone().unwrap_or_else(|| EndpointAddr::new(l.peer)))
+        };
+        let Some(target) = target else {
+            self.fetching.lock().await.remove(&hash);
+            let _ = self.events.send(MeshEvent::BlobFailed {
+                hash,
+                reason: "link-gone".into(),
+            });
+            return;
+        };
+
+        let shared = self.clone();
+        tokio::spawn(async move {
+            const ATTEMPTS: u32 = 5;
+            let mut last_err = String::new();
+            for attempt in 1..=ATTEMPTS {
+                let result = async {
+                    let conn = shared
+                        .endpoint
+                        .connect(target.clone(), BLOBS_ALPN)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    shared
+                        .blobs
+                        .fetch(conn, &hash)
+                        .await
+                        .map_err(|e| e.to_string())
+                }
+                .await;
+
+                match result {
+                    Ok(()) => {
+                        shared.fetching.lock().await.remove(&hash);
+                        let _ = shared.events.send(MeshEvent::BlobReady { hash });
+                        return;
+                    }
+                    Err(e) => {
+                        last_err = e;
+                        tracing::debug!(attempt, "blob fetch attempt failed: {last_err}");
+                        tokio::time::sleep(Duration::from_secs(2 * attempt as u64)).await;
+                    }
+                }
+            }
+            shared.fetching.lock().await.remove(&hash);
+            let _ = shared.events.send(MeshEvent::BlobFailed {
+                hash,
+                reason: last_err,
+            });
+        });
     }
 
     /// Tear down a link after its reader or writer stopped.

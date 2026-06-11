@@ -16,6 +16,8 @@ fn main() {
             ipc::mesh_info,
             ipc::mesh_set_author,
             ipc::mesh_send_text,
+            ipc::mesh_send_image,
+            ipc::mesh_export_blob,
             ipc::mesh_history,
             ipc::mesh_peers,
             ipc::mesh_subscribe,

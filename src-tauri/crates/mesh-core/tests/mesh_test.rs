@@ -22,6 +22,8 @@ struct TestNet {
     next_link: LinkId,
     /// Events emitted per node, in order.
     events: Vec<Vec<MeshEvent>>,
+    /// FetchBlob actions per node: (via_link, hash, size).
+    fetches: Vec<Vec<(LinkId, [u8; 32], u64)>>,
     _dirs: Vec<tempfile::TempDir>,
 }
 
@@ -53,6 +55,7 @@ impl TestNet {
             routes: HashMap::new(),
             next_link: 1,
             events: vec![Vec::new(); n],
+            fetches: vec![Vec::new(); n],
             _dirs: dirs,
         }
     }
@@ -78,6 +81,9 @@ impl TestNet {
         while let Some((from, action)) = queue.pop_front() {
             match action {
                 Action::Emit(ev) => self.events[from].push(ev),
+                Action::FetchBlob { via, hash, size } => {
+                    self.fetches[from].push((via, hash, size))
+                }
                 Action::Send(link, frame) => {
                     let Some(&(to, to_link)) = self.routes.get(&(from, link)) else {
                         continue; // link torn down mid-flight
@@ -248,6 +254,46 @@ fn tampered_message_is_dropped_and_not_relayed() {
 
     assert!(net.texts_seen(1).is_empty(), "B must not emit the forgery");
     assert!(net.texts_seen(2).is_empty(), "C must not receive a relay");
+}
+
+#[test]
+fn image_announcement_requests_fetch_at_each_relay_but_not_origin() {
+    use mesh_core::proto::message::BlobRef;
+
+    let mut net = TestNet::new(3);
+    net.connect(0, 1);
+    net.connect(1, 2);
+
+    let blob = BlobRef {
+        hash: [9u8; 32],
+        size: 4096,
+        mime: "image/jpeg".into(),
+        thumb: vec![1, 2, 3],
+    };
+    let (msg, actions) = net.engines[0]
+        .compose("mesh-X", Body::Image { blob }, 1_700_000_000_000)
+        .unwrap();
+    net.run(0, actions);
+
+    assert!(
+        net.fetches[0].is_empty(),
+        "the origin already has the blob; it must not fetch"
+    );
+    assert_eq!(net.fetches[1].len(), 1, "B fetches once, from A's link");
+    assert_eq!(net.fetches[2].len(), 1, "C fetches once, from B's link");
+    assert_eq!(net.fetches[1][0].1, [9u8; 32]);
+    assert_eq!(net.fetches[2][0].2, 4096);
+
+    // The thumbnail rode the flood: every node already renders a preview.
+    for node in 1..3 {
+        let history = net.engines[node].history("mesh-X", 10).unwrap();
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].id, msg.id);
+        match &history[0].msg.body {
+            Body::Image { blob } => assert_eq!(blob.thumb, vec![1, 2, 3]),
+            other => panic!("expected image body, got {other:?}"),
+        }
+    }
 }
 
 #[test]

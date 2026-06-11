@@ -14,6 +14,7 @@
 //! and returns actions, so the whole protocol is unit-testable on any OS with
 //! in-memory links. Network IO (iroh) adapts to it in the `net` module.
 
+pub mod blobs;
 pub mod error;
 pub mod identity;
 pub mod net;

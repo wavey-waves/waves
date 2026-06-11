@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use iroh::endpoint::{Connection, RecvStream, SendStream};
-use iroh::EndpointId;
+use iroh::{EndpointAddr, EndpointId};
 use tokio::sync::mpsc;
 
 use crate::proto::engine::LinkId;
@@ -15,6 +15,9 @@ use super::Shared;
 
 pub(super) struct LinkHandle {
     pub peer: EndpointId,
+    /// The address we dialed (None on accepted links) — reused for blob
+    /// pulls so they work even without an address-lookup service.
+    pub addr: Option<EndpointAddr>,
     pub sender: mpsc::Sender<Frame>,
 }
 

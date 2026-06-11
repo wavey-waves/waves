@@ -109,6 +109,8 @@ pub enum MeshEventDto {
     Message { message: MessageDto },
     PeerUp { peer: PeerDto },
     PeerDown { origin_id: String },
+    BlobReady { hash: String },
+    BlobFailed { hash: String, reason: String },
 }
 
 impl From<&MeshEvent> for MeshEventDto {
@@ -118,6 +120,11 @@ impl From<&MeshEvent> for MeshEventDto {
             MeshEvent::PeerUp(p) => Self::PeerUp { peer: p.into() },
             MeshEvent::PeerDown(origin) => Self::PeerDown {
                 origin_id: hex(origin),
+            },
+            MeshEvent::BlobReady { hash } => Self::BlobReady { hash: hex(hash) },
+            MeshEvent::BlobFailed { hash, reason } => Self::BlobFailed {
+                hash: hex(hash),
+                reason: reason.clone(),
             },
         }
     }
@@ -227,6 +234,114 @@ pub async fn mesh_peers(state: State<'_, Mesh>) -> Result<Vec<PeerDto>, String> 
         .iter()
         .map(PeerDto::from)
         .collect())
+}
+
+/// Send an image: raw invoke body = the image bytes; `room` and `mime`
+/// arrive as request headers (Tauri 2's binary-payload pattern — bytes skip
+/// JSON entirely). The thumbnail is generated here so every announcement
+/// carries one regardless of client.
+#[tauri::command]
+pub async fn mesh_send_image(
+    state: State<'_, Mesh>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<MessageDto, String> {
+    let header = |name: &str| -> Result<String, String> {
+        request
+            .headers()
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string)
+            .ok_or_else(|| format!("missing {name} header"))
+    };
+    let room = header("room")?;
+    let mime = header("mime")?;
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("expected raw image bytes as the invoke body".into());
+    };
+    let bytes = bytes.clone();
+
+    let thumb = {
+        let bytes = bytes.clone();
+        tauri::async_runtime::spawn_blocking(move || make_thumbnail(&bytes))
+            .await
+            .map_err(|e| e.to_string())??
+    };
+
+    let msg = node(&state)?
+        .send_image(&room, bytes, mime, thumb)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(MessageDto::from(&msg))
+}
+
+/// Downscale + JPEG-encode a thumbnail that fits in the flood (≤ ~10 KiB).
+fn make_thumbnail(bytes: &[u8]) -> Result<Vec<u8>, String> {
+    const MAX_THUMB_BYTES: usize = 10 * 1024;
+    let img = image::load_from_memory(bytes).map_err(|e| format!("not a decodable image: {e}"))?;
+    for (dim, quality) in [(256u32, 70u8), (256, 50), (192, 40), (128, 30)] {
+        let small = img.thumbnail(dim, dim);
+        let mut out = Vec::new();
+        let mut enc =
+            image::codecs::jpeg::JpegEncoder::new_with_quality(std::io::Cursor::new(&mut out), quality);
+        if enc.encode_image(&small.to_rgb8()).is_err() {
+            continue;
+        }
+        if out.len() <= MAX_THUMB_BYTES {
+            return Ok(out);
+        }
+    }
+    Err("could not produce a small enough thumbnail".into())
+}
+
+/// Export a completed blob into the asset-protocol scope and return the
+/// absolute path; the UI renders it via convertFileSrc(). Idempotent.
+#[tauri::command]
+pub async fn mesh_export_blob(
+    app: AppHandle,
+    state: State<'_, Mesh>,
+    hash: String,
+    mime: Option<String>,
+) -> Result<String, String> {
+    let hash_bytes = parse_hash(&hash)?;
+    let node = node(&state)?;
+    if !node.has_blob(&hash_bytes).await {
+        return Err("blob-not-ready".into());
+    }
+
+    let ext = match mime.as_deref() {
+        Some("image/jpeg") => "jpg",
+        Some("image/png") => "png",
+        Some("image/webp") => "webp",
+        Some("image/gif") => "gif",
+        _ => "bin",
+    };
+    // Must stay inside the assetProtocol scope ($APPDATA/blobs/**).
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("blobs")
+        .join("export");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let target = dir.join(format!("{hash}.{ext}"));
+    if !target.exists() {
+        node.export_blob(&hash_bytes, &target)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(target.to_string_lossy().into_owned())
+}
+
+fn parse_hash(s: &str) -> Result<[u8; 32], String> {
+    if s.len() != 64 {
+        return Err("bad hash".into());
+    }
+    let mut out = [0u8; 32];
+    for (i, chunk) in s.as_bytes().chunks(2).enumerate() {
+        let pair = std::str::from_utf8(chunk).map_err(|_| "bad hash")?;
+        out[i] = u8::from_str_radix(pair, 16).map_err(|_| "bad hash")?;
+    }
+    Ok(out)
 }
 
 /// Stream mesh events into the webview. The channel dies when the page

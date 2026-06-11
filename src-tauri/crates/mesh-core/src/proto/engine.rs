@@ -41,6 +41,15 @@ pub enum Action {
     Send(LinkId, Frame),
     /// Surface this to the application (UI layer).
     Emit(MeshEvent),
+    /// An image message arrived over `via` announcing a blob we may not
+    /// have: pull it from that neighbor (announce-then-pull, docs/MESH.md
+    /// L4 — the relayer either has the blob or is fetching it itself, so
+    /// per-hop pulls compose into multi-hop distribution).
+    FetchBlob {
+        via: LinkId,
+        hash: [u8; 32],
+        size: u64,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -49,6 +58,10 @@ pub enum MeshEvent {
     Message(SignedMessage),
     PeerUp(PeerInfo),
     PeerDown(OriginId),
+    /// A previously-announced blob finished downloading into the local store.
+    BlobReady { hash: [u8; 32] },
+    /// A blob pull failed (or was skipped by policy); the thumbnail remains.
+    BlobFailed { hash: [u8; 32], reason: String },
 }
 
 pub struct MeshEngine {
@@ -179,7 +192,7 @@ impl MeshEngine {
                 }
             }
 
-            Frame::Flood { ttl, msg } => self.accept_message(msg, Some((from, ttl))),
+            Frame::Flood { ttl, msg } => self.accept_message(msg, from, Some(ttl)),
 
             Frame::SyncRequest { vv } => {
                 let their: HashMap<OriginId, u64> = vv.into_iter().collect();
@@ -221,7 +234,7 @@ impl MeshEngine {
                     // Synced messages are NOT re-flooded: anti-entropy spreads
                     // pairwise (every node syncs all its neighbors), which
                     // converges without flood amplification.
-                    actions.extend(self.accept_message(msg, None)?);
+                    actions.extend(self.accept_message(msg, from, None)?);
                 }
                 Ok(actions)
             }
@@ -229,11 +242,13 @@ impl MeshEngine {
     }
 
     /// Common acceptance path for flood + sync: verify, dedup, persist, emit,
-    /// and (flood only) relay onward with decremented TTL.
+    /// queue a blob pull for image messages, and (flood only) relay onward
+    /// with decremented TTL.
     fn accept_message(
         &mut self,
         msg: SignedMessage,
-        flood: Option<(LinkId, u8)>,
+        arrival: LinkId,
+        flood_ttl: Option<u8>,
     ) -> Result<Vec<Action>> {
         if self.seen.contains(&msg.id) {
             return Ok(vec![]);
@@ -256,7 +271,17 @@ impl MeshEngine {
         }
 
         let mut actions = vec![Action::Emit(MeshEvent::Message(msg.clone()))];
-        if let Some((arrival, ttl)) = flood {
+        if let Body::Image { blob } = &msg.msg.body {
+            // Pull from whoever delivered the announcement — fetch-and-reseed
+            // makes every relay a seeder, which is what carries a blob across
+            // hops that share no IP path.
+            actions.push(Action::FetchBlob {
+                via: arrival,
+                hash: blob.hash,
+                size: blob.size,
+            });
+        }
+        if let Some(ttl) = flood_ttl {
             if ttl > 0 {
                 actions.extend(self.flood_to_neighbors(&msg, ttl - 1, Some(arrival)));
             }

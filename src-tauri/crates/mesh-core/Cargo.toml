@@ -11,6 +11,7 @@ repository.workspace = true
 blake3.workspace = true
 ed25519-dalek.workspace = true
 iroh.workspace = true
+iroh-blobs.workspace = true
 iroh-mdns-address-lookup.workspace = true
 lru.workspace = true
 postcard.workspace = true
