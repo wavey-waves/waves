@@ -103,8 +103,8 @@ impl LegacyApHost {
                   args: Ref<'_, WiFiDirectConnectionRequestedEventArgs>| {
                 let request = args.ok()?.GetConnectionRequest()?;
                 let id = request.DeviceInformation()?.Id()?;
-                // Blocking get() is fine on the threadpool thread.
-                let device = WiFiDirectDevice::FromIdAsync(&id)?.get()?;
+                // Blocking join() is fine on the threadpool thread.
+                let device = WiFiDirectDevice::FromIdAsync(&id)?.join()?;
                 if let Ok(mut held) = conn_devices.lock() {
                     held.push(device);
                 }

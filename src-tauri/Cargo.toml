@@ -17,6 +17,7 @@ repository = "https://github.com/wavey-waves/waves"
 base64 = "0.22"
 blake3 = "1.8"
 ed25519-dalek = "2.2"
+if-addrs = "0.15"
 lru = "0.18"
 postcard = { version = "1.1", features = ["use-std"] }
 rand = "0.9"

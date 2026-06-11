@@ -21,7 +21,7 @@ use mesh_core::proto::message::{Author, Body};
 
 fn usage() -> ! {
     eprintln!(
-        "usage:\n  waves-spike auto [--name <id>] [--blob-mb <N>] [--seconds <S>]\n  waves-spike caps\n  waves-spike radio ...   (P3 — not yet implemented)"
+        "usage:\n  waves-spike auto [--name <id>] [--blob-mb <N>] [--seconds <S>]\n  waves-spike caps\n  waves-spike radio host <CODE> [auto flags]     (start WiFi-Direct AP, then run auto)\n  waves-spike radio join <CODE> [auto flags]     (join the AP, then run auto)\n  waves-spike radio extend <UP> <DOWN> [flags]   (join UP, host DOWN — chain bridge)"
     );
     std::process::exit(2);
 }
@@ -46,13 +46,106 @@ fn main() {
                 .block_on(auto(name, blob_mb, seconds))
         }
         Some("caps") => caps(),
-        Some("radio") => {
-            eprintln!("radio host/join lands with P3 (docs/MESH.md); meanwhile join the same AP/hotspot");
-            3
-        }
+        Some("radio") => run_radio(&args),
         _ => usage(),
     };
     std::process::exit(code);
+}
+
+/// Radio modes: set up the WiFi-Direct layer, then run the same `auto`
+/// pipeline over it. The mesh layer is radio-agnostic — once the OS-level
+/// link exists, discovery and transfer behave exactly as on any LAN.
+fn run_radio(args: &[String]) -> i32 {
+    #[cfg(not(windows))]
+    {
+        let _ = args;
+        eprintln!("radio modes require Windows (WiFi-Direct); see docs/mesh-notes/hardware-verification.md");
+        2
+    }
+    #[cfg(windows)]
+    {
+        let get = |flag: &str| {
+            args.iter()
+                .position(|a| a == flag)
+                .and_then(|i| args.get(i + 1))
+                .cloned()
+        };
+        let name = get("--name").unwrap_or_else(|| format!("spike-{}", std::process::id()));
+        let blob_mb: u64 = get("--blob-mb").and_then(|v| v.parse().ok()).unwrap_or(0);
+        let seconds: u64 = get("--seconds").and_then(|v| v.parse().ok()).unwrap_or(180);
+
+        let mode = args.get(1).map(String::as_str);
+        let positional: Vec<&String> = args[2..].iter().take_while(|a| !a.starts_with("--")).collect();
+
+        // Keep hosts alive for the whole run: the GO dies with the value.
+        let mut hosts: Vec<radio_win::host::LegacyApHost> = Vec::new();
+        let mut joined: Option<String> = None;
+
+        let setup: Result<(), String> = (|| {
+            match (mode, positional.as_slice()) {
+                (Some("host"), [code]) => {
+                    hosts.push(radio_host_blocking(code)?);
+                    Ok(())
+                }
+                (Some("join"), [code]) => {
+                    joined = Some(radio_join_blocking(code)?);
+                    Ok(())
+                }
+                (Some("extend"), [up, down]) => {
+                    joined = Some(radio_join_blocking(up)?);
+                    hosts.push(radio_host_blocking(down)?);
+                    Ok(())
+                }
+                _ => Err("bad radio arguments".into()),
+            }
+        })();
+        if let Err(e) = setup {
+            eprintln!("FAIL: radio setup: {e}");
+            return 2;
+        }
+
+        let code = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("tokio runtime")
+            .block_on(auto(name, blob_mb, seconds));
+
+        if let Some(ssid) = joined {
+            let _ = radio_win::join::leave(&ssid);
+        }
+        drop(hosts);
+        code
+    }
+}
+
+#[cfg(windows)]
+fn radio_host_blocking(code: &str) -> Result<radio_win::host::LegacyApHost, String> {
+    let (ssid, passphrase) = radio_win::creds::derive_credentials(code);
+    println!("starting WiFi-Direct AP: SSID={ssid}");
+    let (tx, rx) = std::sync::mpsc::channel();
+    let host =
+        radio_win::host::LegacyApHost::start(&ssid, &passphrase, tx).map_err(|e| e.to_string())?;
+    match rx.recv_timeout(std::time::Duration::from_secs(15)) {
+        Ok(radio_win::RadioEvent::ApStarted) => {
+            println!("AP up: {ssid} (clients lease 192.168.137.x via ICS)");
+            Ok(host)
+        }
+        Ok(radio_win::RadioEvent::ApAborted(detail)) => {
+            Err(format!("AP aborted: {detail} (Mobile Hotspot on? radio off?)"))
+        }
+        Ok(other) => Err(format!("unexpected radio event: {other:?}")),
+        Err(_) => Err("timed out waiting for AP start".into()),
+    }
+}
+
+#[cfg(windows)]
+fn radio_join_blocking(code: &str) -> Result<String, String> {
+    let (ssid, passphrase) = radio_win::creds::derive_credentials(code);
+    println!("joining {ssid} (scan + connect, up to ~25s)...");
+    radio_win::join::join(&ssid, &passphrase, std::time::Duration::from_secs(25))
+        .map_err(|e| e.to_string())?;
+    println!("connected to {ssid}");
+    Ok(ssid)
 }
 
 async fn auto(name: String, blob_mb: u64, seconds: u64) -> i32 {

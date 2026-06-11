@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 blake3.workspace = true
 ed25519-dalek.workspace = true
+if-addrs.workspace = true
 iroh.workspace = true
 iroh-blobs.workspace = true
 iroh-mdns-address-lookup.workspace = true

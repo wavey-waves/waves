@@ -46,9 +46,10 @@ pub(super) async fn run(shared: Arc<Shared>) -> std::io::Result<()> {
                     payload.extend_from_slice(MAGIC);
                     payload.extend_from_slice(&own_id);
                     payload.extend_from_slice(&port.to_le_bytes());
-                    let dest = SocketAddr::from(([255, 255, 255, 255], BEACON_PORT));
-                    if let Err(e) = socket.send_to(&payload, dest).await {
-                        tracing::debug!("beacon send failed: {e}");
+                    for dest in broadcast_destinations() {
+                        if let Err(e) = socket.send_to(&payload, dest).await {
+                            tracing::debug!("beacon send to {dest} failed: {e}");
+                        }
                     }
                 }
             }
@@ -60,6 +61,39 @@ pub(super) async fn run(shared: Arc<Shared>) -> std::io::Result<()> {
             }
         }
     }
+}
+
+/// Every place a beacon should go. The limited broadcast (255.255.255.255)
+/// exits only one interface on multi-homed hosts, but a chaining bridge node
+/// (P4) sits on two subnets at once — its own GO's 192.168.137.x and its
+/// uplink's — so we also send a subnet-directed broadcast on every non-
+/// loopback IPv4 interface.
+fn broadcast_destinations() -> Vec<SocketAddr> {
+    let mut dests = vec![SocketAddr::from(([255, 255, 255, 255], BEACON_PORT))];
+    let Ok(interfaces) = if_addrs::get_if_addrs() else {
+        return dests;
+    };
+    for iface in interfaces {
+        if iface.is_loopback() {
+            continue;
+        }
+        if let if_addrs::IfAddr::V4(v4) = iface.addr {
+            let bcast = match v4.broadcast {
+                Some(b) => b,
+                None => {
+                    // Derive from ip | !netmask when the OS doesn't report it.
+                    let ip = u32::from(v4.ip);
+                    let mask = u32::from(v4.netmask);
+                    std::net::Ipv4Addr::from(ip | !mask)
+                }
+            };
+            let dest = SocketAddr::from((bcast, BEACON_PORT));
+            if !dests.contains(&dest) {
+                dests.push(dest);
+            }
+        }
+    }
+    dests
 }
 
 fn quic_port(shared: &Shared) -> Option<u16> {
