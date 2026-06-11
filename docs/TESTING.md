@@ -2,6 +2,26 @@
 
 Each package is checked independently. Run commands from inside the relevant package directory.
 
+## Mesh / Desktop (`src-tauri/`)
+
+Tooling: **cargo test** (unit tests, multi-node protocol tests over in-memory
+links, real-QUIC loopback integration tests) and **cargo clippy** (CI denies
+warnings). The workspace's default members build everywhere; the Tauri app
+crate and the Windows radio internals compile only on Windows — the CI
+`mesh-windows` job (full `cargo check --workspace --all-targets` + tests on
+windows-latest) is their gate, so a green local Linux run is necessary but not
+sufficient for src-tauri changes: push and watch that job.
+
+```bash
+cd src-tauri
+cargo test                    # mesh-core + radio-win (pure parts) + spike
+cargo clippy --all-targets    # CI runs with -D warnings
+```
+
+Real radio behavior (WiFi-Direct GO, joins, multi-hop chains) cannot run in CI
+at all — see [mesh-notes/hardware-verification.md](./mesh-notes/hardware-verification.md)
+for the owner-run hardware checklist built around the `waves-spike` binary.
+
 ## Backend (`backend/`)
 
 Tooling: **Vitest** (test runner) + **Supertest** (HTTP assertions) + **mongodb-memory-server** (in-memory MongoDB so tests need no real database). Type-checking is `tsc --noEmit` against the JS sources with `checkJs` + JSDoc annotations (config in `backend/tsconfig.json`).

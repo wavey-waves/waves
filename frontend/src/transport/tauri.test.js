@@ -11,7 +11,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 }))
 
 import { invoke } from '@tauri-apps/api/core'
-import { createTransport, dtoToUi, resolveMeshRoom, meshJoin } from './tauri.js'
+import { createTransport, dtoToUi, resolveMeshRoom, meshJoin, radio } from './tauri.js'
 
 // A camelCase MessageDto as serialized by src-tauri/src/ipc.rs.
 const textDto = {
@@ -310,6 +310,46 @@ describe('mesh transport', () => {
     transport.disconnect()
     channel.onmessage({ type: 'message', message: textDto })
     expect(handlers.onServerMessage).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('radio API', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('maps each call onto its radio_* command', async () => {
+    invoke.mockResolvedValue(undefined)
+
+    await radio.radioCaps()
+    expect(invoke).toHaveBeenCalledWith('radio_caps')
+
+    await radio.radioHost('ab12cd')
+    expect(invoke).toHaveBeenCalledWith('radio_host', { code: 'ab12cd' })
+
+    await radio.radioStopHost()
+    expect(invoke).toHaveBeenCalledWith('radio_stop_host')
+
+    await radio.radioJoin('ab12cd')
+    expect(invoke).toHaveBeenCalledWith('radio_join', { code: 'ab12cd' })
+
+    await radio.radioLeave()
+    expect(invoke).toHaveBeenCalledWith('radio_leave')
+  })
+
+  it('returns the SSID resolved by radio_host', async () => {
+    invoke.mockResolvedValueOnce('WAVES-AB12CD')
+    await expect(radio.radioHost('AB12CD')).resolves.toBe('WAVES-AB12CD')
+  })
+
+  it('surfaces rejections verbatim — the radio is not retried, even on "mesh-starting"', async () => {
+    // The radio is a separate subsystem from the mesh node: no withMeshRetry.
+    invoke.mockRejectedValue('mesh-starting')
+    await expect(radio.radioCaps()).rejects.toBe('mesh-starting')
+    expect(invoke).toHaveBeenCalledTimes(1)
+
+    invoke.mockRejectedValue('radio-requires-windows')
+    await expect(radio.radioJoin('AB12CD')).rejects.toBe('radio-requires-windows')
   })
 })
 

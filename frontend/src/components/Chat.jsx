@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import "react-toastify/dist/ReactToastify.css";
 import iconImage from "../assets/icon.png";
 import { createTransport } from "../transport";
+import RadioPanel from "./RadioPanel";
 
 // Mesh image chat (docs/MESH.md P2.b). Client-side cap on what we hand the
 // mesh; receivers have their own 10 MiB auto-fetch cap on top of this.
@@ -489,6 +490,12 @@ function Chat({ roomType, roomCode, user, roomData }) {
               </div>
             </div>
           </div>
+
+          {/* Forest-mode radio controls (docs/MESH.md P3.b): mesh transport +
+              custom rooms only — the room code drives the SSID/PSK (D2). */}
+          {transportKind === "mesh" && actualRoomType === "custom" && roomCode && (
+            <RadioPanel roomCode={roomCode} colors={colors} />
+          )}
 
           {/* Mobile Info Modal */}
           {showMobileInfo && (

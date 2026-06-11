@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import axios from 'axios'
@@ -189,6 +189,75 @@ describe('CustomRoom', () => {
       await waitFor(() => {
         expect(toast.error).toHaveBeenCalledWith('Please enter a room code')
       })
+      expect(axios.post).not.toHaveBeenCalled()
+    })
+  })
+
+  // Desktop mesh build (docs/MESH.md P3.b): rooms are serverless — the real
+  // isTauri() keys off window.__TAURI_INTERNALS__, so set it for these tests.
+  describe('desktop (Tauri) serverless path', () => {
+    beforeEach(() => {
+      window.__TAURI_INTERNALS__ = {}
+    })
+    afterEach(() => {
+      delete window.__TAURI_INTERNALS__
+    })
+
+    it('creates a room locally with a 6-char alphanumeric code and no server call', async () => {
+      const onJoin = vi.fn()
+      const user = userEvent.setup()
+      render(<CustomRoom onJoin={onJoin} onClose={() => {}} />)
+      await user.click(screen.getByRole('button', { name: /Create New Room/i }))
+      await user.click(screen.getByRole('button', { name: /^Create Room$/i }))
+
+      await waitFor(() => expect(onJoin).toHaveBeenCalledTimes(1))
+      const roomData = onJoin.mock.calls[0][0]
+      expect(roomData.code).toMatch(/^[A-Z0-9]{6}$/)
+      expect(roomData.roomName).toBe(`custom-${roomData.code}`)
+      expect(toast.success).toHaveBeenCalledWith(
+        `Room created! Code: ${roomData.code}`
+      )
+      expect(axios.post).not.toHaveBeenCalled()
+    })
+
+    it('joins a well-formed code locally without a server call', async () => {
+      const onJoin = vi.fn()
+      const user = userEvent.setup()
+      render(<CustomRoom onJoin={onJoin} onClose={() => {}} />)
+      await user.click(screen.getByRole('button', { name: /Join Existing Room/i }))
+      await user.type(
+        screen.getByPlaceholderText(/Enter 6-character code/i),
+        'ab12cd'
+      )
+      await user.click(screen.getByRole('button', { name: /^Join Room$/i }))
+
+      await waitFor(() => {
+        expect(onJoin).toHaveBeenCalledWith({
+          roomName: 'custom-AB12CD',
+          code: 'AB12CD',
+        })
+      })
+      expect(toast.success).toHaveBeenCalledWith('Joined room: AB12CD')
+      expect(axios.post).not.toHaveBeenCalled()
+    })
+
+    it('rejects a code with non-alphanumeric characters', async () => {
+      const onJoin = vi.fn()
+      const user = userEvent.setup()
+      render(<CustomRoom onJoin={onJoin} onClose={() => {}} />)
+      await user.click(screen.getByRole('button', { name: /Join Existing Room/i }))
+      await user.type(
+        screen.getByPlaceholderText(/Enter 6-character code/i),
+        'ab!12c'
+      )
+      await user.click(screen.getByRole('button', { name: /^Join Room$/i }))
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith(
+          'Room code must be 6 letters or digits'
+        )
+      })
+      expect(onJoin).not.toHaveBeenCalled()
       expect(axios.post).not.toHaveBeenCalled()
     })
   })

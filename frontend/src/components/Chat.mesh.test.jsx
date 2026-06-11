@@ -34,6 +34,24 @@ vi.mock('../transport', () => ({
   createTransport: vi.fn(async () => fakeTransport),
 }))
 
+// RadioPanel (P3.b) dynamic-imports the radio API from the tauri transport;
+// resolve caps as unsupported (the Linux-dev shape) so the panel renders its
+// muted marker line deterministically.
+vi.mock('../transport/tauri.js', () => ({
+  radio: {
+    radioCaps: vi.fn(async () => ({
+      supported: false,
+      wifiDirectGo: false,
+      wifiDirectClient: false,
+      goStaConcurrency: false,
+    })),
+    radioHost: vi.fn(),
+    radioStopHost: vi.fn(),
+    radioJoin: vi.fn(),
+    radioLeave: vi.fn(),
+  },
+}))
+
 const baseUser = {
   id: 'me-1',
   username: 'me',
@@ -94,6 +112,29 @@ describe('Chat (mesh transport)', () => {
   it('shows the attach-image button only once the mesh transport is up', async () => {
     await connectChat()
     expect(screen.getByRole('button', { name: /Attach image/i })).toBeInTheDocument()
+  })
+
+  describe('forest radio panel (P3.b)', () => {
+    it('renders for custom rooms once the mesh transport is up', async () => {
+      fakeTransport.resolveRoom = vi.fn(async () => ({
+        roomName: 'mesh-AB12CD',
+        code: 'AB12CD',
+      }))
+      await connectChat({ roomType: 'custom', roomCode: 'AB12CD' })
+
+      // The mocked caps report unsupported (Linux dev), so the panel shows
+      // its single muted line — proof it is mounted for custom rooms.
+      expect(
+        await screen.findByText('WiFi-Direct radio requires Windows')
+      ).toBeInTheDocument()
+    })
+
+    it('does not render for the global mesh room', async () => {
+      await connectChat()
+      expect(
+        screen.queryByText('WiFi-Direct radio requires Windows')
+      ).not.toBeInTheDocument()
+    })
   })
 
   describe('image rendering', () => {

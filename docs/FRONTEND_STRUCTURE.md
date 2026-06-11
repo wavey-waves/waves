@@ -1,18 +1,34 @@
 # Frontend Structure
 
-React 19 SPA built with Vite + Tailwind v4. Entry is `src/main.jsx` → `src/App.jsx`. There are only four components.
+React 19 SPA built with Vite + Tailwind v4. Entry is `src/main.jsx` → `src/App.jsx`.
+
+The same SPA serves two runtimes: the **web app** (REST + Socket.IO + WebRTC
+against the Express backend) and **Waves Desktop** (the Tauri app, where all
+chat IO goes to the local Rust mesh node instead — see [MESH.md](./MESH.md)).
+All IO is abstracted behind the **transport seam** in `src/transport/`.
+
+## Transport seam (`src/transport/`)
+
+| File | Responsibility |
+| --- | --- |
+| `index.js` | `isTauri()` detection + `createTransport({user})`, which dynamic-imports exactly one implementation (keeps `@tauri-apps/api` out of the web bundle — the build emits separate lazy chunks). |
+| `web.js` | The web transport: all the Socket.IO / WebRTC / axios logic that used to live inline in `Chat.jsx` (see [REALTIME.md](./REALTIME.md) — the tempId dedup invariant is unchanged). |
+| `tauri.js` | The mesh transport: maps Tauri IPC DTOs to the UI message shape, retries the `mesh-starting` rejection, streams events over a `tauri::ipc::Channel`, sends images as raw invoke bodies, and exposes the `radio` API (`radioCaps/radioHost/radioStopHost/radioJoin/radioLeave`) for forest mode. Mesh rooms: `custom` code → `mesh-<CODE>`, global/network → `mesh-global`. |
+
+Both implement `{kind, resolveRoom, fetchHistory, connect({roomName, handlers}), send({roomName, payload}), disconnect}` (+ `sendImage`/`exportBlob` on the mesh side).
 
 ## Components
 
 | Component | File | Responsibility |
 | --- | --- | --- |
 | `App` (+ `Home`, `ChatRoute`) | `src/App.jsx` | Router setup, the landing/room-selection screen (`Home`), and the auth-gating route wrapper (`ChatRoute`). |
-| `Chat` | `src/components/Chat.jsx` | The chat screen. Holds nearly all runtime logic: Socket.IO connection, WebRTC peer/data-channel setup, message send/receive + dedup, message history fetch, UI. ~800 lines. See [REALTIME.md](./REALTIME.md). |
-| `JoinRoom` | `src/components/JoinRoom.jsx` | The join modal. Anonymous vs custom-account auth. Generates/persists anonymous identity (name + color) in `localStorage` (`anonymousUser`, 7-day expiry, with legacy-key migration). Calls `/api/auth/login` / `/api/auth/signup`. Holds the per-room-type color palettes (`ROOM_THEMES`). |
-| `CustomRoom` | `src/components/CustomRoom.jsx` | Modal to create (`POST /api/rooms/create`) or join (`POST /api/rooms/join`) a custom room by 6-char code. |
+| `Chat` | `src/components/Chat.jsx` | The chat screen: state, message dedup/upsert, throttle, rendering (incl. image messages: flooded thumbnail first, full-res swap when the blob arrives), and the send flows — optimistic + server echo on web, direct mesh compose on desktop. IO lives in the transport seam. |
+| `RadioPanel` | `src/components/RadioPanel.jsx` | Desktop-only forest-mode panel (custom rooms): Host network / Join network / Extend mesh via the `radio` IPC, gated on adapter capabilities; shows hosting/joined state. |
+| `JoinRoom` | `src/components/JoinRoom.jsx` | The join modal. Web: anonymous vs custom-account auth (`/api/auth/*`), anonymous identity persisted in `localStorage` (`anonymousUser`, 7-day expiry). Desktop: serverless join — display name + palette color → `mesh_set_author`, user id = the device's mesh endpoint id; registered login hidden. Holds `ROOM_THEMES`. |
+| `CustomRoom` | `src/components/CustomRoom.jsx` | Modal to create/join a custom room by 6-char code. Web: `POST /api/rooms/create|join`. Desktop: codes generated/validated locally (no server). |
 | `Documentation` | `src/components/Documentation.jsx` | Static informational modal explaining P2P/WebRTC behavior. Pure presentation, no data. |
 
-(`Documentation` is the fourth component alongside `Chat`, `JoinRoom`, `CustomRoom`. `App.jsx` defines `Home` and `ChatRoute` as local components, not separate files.)
+(`App.jsx` defines `Home` and `ChatRoute` as local components, not separate files.)
 
 ## Routes (React Router v7)
 

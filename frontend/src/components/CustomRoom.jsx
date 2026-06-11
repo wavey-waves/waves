@@ -1,6 +1,30 @@
 import { useState } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
+import { isTauri } from "../transport";
+
+// Desktop mesh build (docs/MESH.md P3.b): rooms are serverless — the 6-char
+// code alone names the room (the transport maps it to mesh-<CODE>, and the
+// forest-mode SSID/PSK derive from it on the Rust side, decision D2). So
+// 'create' just mints a code locally and 'join' only validates its format.
+const CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const CODE_LENGTH = 6;
+const CODE_REGEX = /^[A-Z0-9]{6}$/;
+
+function generateLocalRoomCode() {
+  // Rejection-sample the random bytes so every alphabet char is equally likely.
+  const limit = 256 - (256 % CODE_ALPHABET.length);
+  let code = "";
+  while (code.length < CODE_LENGTH) {
+    const bytes = crypto.getRandomValues(
+      new Uint8Array(CODE_LENGTH - code.length)
+    );
+    for (const byte of bytes) {
+      if (byte < limit) code += CODE_ALPHABET[byte % CODE_ALPHABET.length];
+    }
+  }
+  return code;
+}
 
 function CustomRoom({ onJoin, onClose }) {
   const [mode, setMode] = useState(null); // 'create' or 'join'
@@ -8,6 +32,14 @@ function CustomRoom({ onJoin, onClose }) {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleCreateRoom = async () => {
+    if (isTauri()) {
+      // Serverless desktop path: mint the code locally, then proceed through
+      // the same success callback as the web path.
+      const code = generateLocalRoomCode();
+      onJoin({ roomName: `custom-${code}`, code });
+      toast.success(`Room created! Code: ${code}`);
+      return;
+    }
     setIsLoading(true);
     try {
       const response = await axios.post('/api/rooms/create');
@@ -31,6 +63,19 @@ function CustomRoom({ onJoin, onClose }) {
     e.preventDefault();
     if (!roomCode.trim()) {
       toast.error("Please enter a room code");
+      return;
+    }
+
+    if (isTauri()) {
+      // Serverless desktop path: there is no room registry to ask — a
+      // well-formed code IS the room.
+      const code = roomCode.trim();
+      if (!CODE_REGEX.test(code)) {
+        toast.error("Room code must be 6 letters or digits");
+        return;
+      }
+      onJoin({ roomName: `custom-${code}`, code });
+      toast.success(`Joined room: ${code}`);
       return;
     }
 

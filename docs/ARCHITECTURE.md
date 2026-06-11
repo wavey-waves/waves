@@ -10,6 +10,7 @@ Two independent npm packages live side by side. There is no workspace/root packa
 waves/
 ├── frontend/        # React 19 + Vite + Tailwind v4 (separate npm package)
 ├── backend/         # Express + Socket.IO, ES modules (separate npm package)
+├── src-tauri/       # Waves Desktop: Tauri 2 app + Rust mesh workspace (offline P2P mode)
 ├── docs/            # this documentation
 ├── package.json     # root: production deploy orchestration only (build/start)
 ├── README.md
@@ -27,6 +28,22 @@ So a single backend process serves everything in production.
 
 - **Backend** (`backend/src/`) is a conventional Express app: routes → controllers → models, plus a Socket.IO layer. See [BACKEND_STRUCTURE.md](./BACKEND_STRUCTURE.md).
 - **Frontend** (`frontend/src/`) is a four-component React SPA; nearly all chat logic lives in `components/Chat.jsx`. See [FRONTEND_STRUCTURE.md](./FRONTEND_STRUCTURE.md).
+
+## Web mode vs Desktop (mesh) mode
+
+The same React frontend serves two transports behind `frontend/src/transport/`
+(picked at runtime by `isTauri()`):
+
+- **Web mode** — everything in this document: REST + Socket.IO against the
+  Express backend, WebRTC data channels between room members, MongoDB
+  persistence. Requires the server.
+- **Desktop mode** — the Tauri app (`src-tauri/`) embeds a Rust mesh node:
+  devices discover each other locally (mDNS + UDP beacon, and on Windows a
+  WiFi-Direct legacy AP for infrastructure-less operation), form a multi-hop
+  mesh over QUIC, and replicate messages + images peer-to-peer with zero
+  server involvement. Full architecture, protocol spec and phase status:
+  [MESH.md](./MESH.md). Mesh rooms live in their own `mesh-*` namespace; the
+  message schema is bridge-ready (decision D4) but no server bridge exists yet.
 
 ## The three room types
 

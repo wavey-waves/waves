@@ -90,6 +90,21 @@ export async function meshJoin({ name, color }) {
   return { endpointId: info.endpointId };
 }
 
+/**
+ * WiFi-Direct radio controls for forest mode (docs/MESH.md P3.b, decisions
+ * D2/D3). The radio is a separate subsystem from the mesh node, so these are
+ * deliberately NOT wrapped in withMeshRetry — rejections are descriptive
+ * strings the UI surfaces verbatim ("radio-requires-windows" on non-Windows
+ * dev builds, Mobile Hotspot conflicts, scan timeouts, …).
+ */
+export const radio = {
+  radioCaps: () => invoke("radio_caps"),
+  radioHost: (code) => invoke("radio_host", { code }),
+  radioStopHost: () => invoke("radio_stop_host"),
+  radioJoin: (code) => invoke("radio_join", { code }),
+  radioLeave: () => invoke("radio_leave"),
+};
+
 export function createTransport() {
   let channel = null;
   let connectedRoom = null;
