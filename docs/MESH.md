@@ -194,23 +194,31 @@ If the latest commit on this branch is < 30 min old, another session is likely a
       tracking (blobReady/blobFailed events) and full-res swap via
       mesh_export_blob + convertFileSrc. Byte-level transfer progress deferred
       (pulsing pending state only).
-- [ ] P3.a `radio-win`: legacy-AP GO host (windows-rs 0.62, written fresh from
+- [x] P3.a `radio-win`: legacy-AP GO host (windows-rs 0.62, written fresh from
       the API docs — see mesh-notes/winrt-radio-api.md) + WlanConnect joiner
       (profile XML, ACM connect-complete wait, cleanup-on-leave) + netsh
       capability probe + room-code credential derivation (D2). IPC commands
-      radio_caps/host/stop_host/join/leave landed.
-      STATUS: pure parts (creds, caps parser) tested on Linux; the
-      cfg(windows) host/join modules have only been compiled by the CI
-      mesh-windows job — check this box when that job is green, and note
-      that real radio behavior (GO up, join works, ICS subnet) remains
-      OWNER ACTION via `waves-spike` on hardware.
-- [ ] P3.b Host/Join UI: SSID/PSK derived from room code; first-class errors
-      ("Mobile Hotspot is on", "WiFi is off"); GO liveness watchdog
-- [ ] P4.a GO+STA chaining ("Extend mesh"): bridge nodes hold iroh links on both
-      subnets; flood/anti-entropy/reseed relays across (no new protocol work)
-- [ ] P4.b Multi-hop verification guide for owner (3-laptop A–B–C demo script)
-- [ ] Docs sync: FRONTEND_STRUCTURE.md (seam), ARCHITECTURE.md (desktop mode),
-      TESTING.md (cargo gates), README
+      radio_caps/host/stop_host/join/leave landed. CI mesh-windows green
+      (compile + tests, run 27353415075). Real radio behavior (GO up, join
+      works, ICS subnet) remains OWNER ACTION via `waves-spike` on hardware.
+- [x] P3.b Host/Join UI: RadioPanel (desktop, custom rooms) with Host/Join/
+      Extend wired to the radio IPC, capability gating, verbatim error toasts,
+      ~25s join busy state; CustomRoom desktop path generates/validates codes
+      locally. GO liveness watchdog deliberately deferred until hardware data
+      shows whether the Win11 stuck-Started bug bites (recreate-not-reuse is
+      already the pattern).
+- [x] P4.a GO+STA chaining ("Extend mesh"): Extend hosts a GO while STA-joined
+      (capability-gated); beacon broadcasts per-interface so bridge nodes
+      announce on both subnets; flood/anti-entropy/reseed relay across links
+      with zero new protocol work (proven by the in-process A–B–C tests).
+      Real-radio chain validation = hardware guide Phase C (OWNER ACTION).
+- [x] P4.b Multi-hop verification guide for owner:
+      mesh-notes/hardware-verification.md — 3 phases (LAN / one radio hop /
+      A–B–C chain) around `waves-spike radio host|join|extend`.
+- [x] Docs sync: FRONTEND_STRUCTURE.md (seam, RadioPanel, desktop paths),
+      ARCHITECTURE.md (web vs desktop mode), TESTING.md (cargo gates +
+      mesh-windows caveat). README untouched (web-app focused; desktop gets
+      its own section when the first installer ships).
 
 ## Riskiest assumptions (validate in this order)
 
